@@ -52,5 +52,10 @@ class UserRepository {
   Future<User?> getFirstCashier() async {
     return await _isar.users.filter().roleEqualTo('cajero').findFirst();
   }
+
+  /// Obtiene el usuario con rol de Administrador principal registrado.
+  Future<User?> getFirstAdmin() async {
+    return await _isar.users.filter().roleEqualTo('admin').findFirst();
+  }
 }
 

@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <!-- Gradiente de fondo del ícono -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4353FF"/>
+      <stop offset="100%" stop-color="#2128AA"/>
+    </linearGradient>
+
+    <!-- Gradiente de acento Go -->
+    <linearGradient id="accentGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00E699"/>
+      <stop offset="100%" stop-color="#00A86B"/>
+    </linearGradient>
+
+    <!-- Sombra suave del toldo -->
+    <filter id="dropShadow" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000000" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+
+  <!-- Contenedor redondeado tipo App Icon -->
+  <rect width="512" height="512" rx="128" fill="url(#bgGrad)"/>
+
+  <!-- Líneas aerodinámicas de velocidad "Go" a la izquierda -->
+  <g opacity="0.35" stroke="#FFFFFF" stroke-width="12" stroke-linecap="round">
+    <line x1="70" y1="210" x2="130" y2="210"/>
+    <line x1="50" y1="260" x2="120" y2="260"/>
+    <line x1="80" y1="310" x2="140" y2="310"/>
+  </g>
+
+  <!-- Grupo Principal: Toldo de Bodega + Carrito Veloz -->
+  <g filter="url(#dropShadow)" transform="translate(10, 0)">
+    <!-- 1. Toldo de la Bodega (Techo Ondulado) -->
+    <!-- Franja 1 (Blanca) -->
+    <path d="M 160 140 L 220 140 L 210 200 C 200 216 170 216 160 200 Z" fill="#FFFFFF"/>
+    <!-- Franja 2 (Verde Éxito) -->
+    <path d="M 220 140 L 280 140 L 270 200 C 260 216 230 216 220 200 Z" fill="url(#accentGrad)"/>
+    <!-- Franja 3 (Blanca) -->
+    <path d="M 280 140 L 340 140 L 330 200 C 320 216 290 216 280 200 Z" fill="#FFFFFF"/>
+    <!-- Franja 4 (Verde Éxito - Alero frontal) -->
+    <path d="M 340 140 L 400 140 L 390 200 C 380 216 350 216 340 200 Z" fill="url(#accentGrad)"/>
+
+    <!-- Viga superior del toldo -->
+    <rect x="155" y="132" width="250" height="14" rx="7" fill="#FFFFFF"/>
+
+    <!-- 2. Cesta y Chasis del Carrito en Movimiento -->
+    <!-- Cesta inclinada y aerodinámica hacia adelante -->
+    <path d="M 175 220 L 375 220 C 390 220 402 232 398 248 L 370 330 C 366 342 355 350 342 350 L 210 350 C 196 350 185 340 182 326 L 160 220 Z" 
+          fill="#FFFFFF" opacity="0.95"/>
+
+    <!-- Franja central dinámica de la canasta (Verde Go) -->
+    <path d="M 190 260 L 385 260 L 377 288 L 196 288 Z" fill="url(#accentGrad)"/>
+
+    <!-- Asa / Manija del Carrito -->
+    <path d="M 135 185 L 165 235" stroke="#FFFFFF" stroke-width="16" stroke-linecap="round"/>
+
+    <!-- 3. Ruedas del Carrito en Rotación/Avance -->
+    <!-- Rueda Trasera -->
+    <circle cx="230" cy="395" r="26" fill="#FFFFFF"/>
+    <circle cx="230" cy="395" r="14" fill="#00D084"/>
+
+    <!-- Rueda Delantera -->
+    <circle cx="345" cy="395" r="26" fill="#FFFFFF"/>
+    <circle cx="345" cy="395" r="14" fill="#00D084"/>
+  </g>
+</svg>
+

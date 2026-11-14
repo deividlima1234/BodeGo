@@ -10,6 +10,10 @@ import 'package:bodego/presentation/screens/pos/pos_module_screen.dart';
 import 'package:bodego/presentation/screens/reports/reports_screen.dart';
 import 'package:bodego/presentation/screens/settings/settings_screen.dart';
 import 'package:bodego/presentation/widgets/bodego_sidebar.dart';
+import 'package:bodego/presentation/widgets/user_business_modal.dart';
+import 'package:bodego/presentation/screens/auth/pin_login_screen.dart';
+import 'package:bodego/core/services/ota_update_service.dart';
+import 'package:bodego/presentation/widgets/ota_update_modal.dart';
 
 /// Dashboard Principal de BodeGo responsive con gestión inteligente del botón "Atrás":
 /// Permite retroceder secuencialmente por las secciones hasta llegar a la Caja,
@@ -58,6 +62,20 @@ class _MainPosScreenState extends State<MainPosScreen> {
     super.initState();
     _loadSessionData();
     BusinessConfigRepository().configNotifier.addListener(_onConfigChanged);
+    _checkOtaUpdatesSilently();
+  }
+
+  /// Verifica silenciosamente en segundo plano si existe una actualización OTA en GitHub
+  Future<void> _checkOtaUpdatesSilently() async {
+    await Future.delayed(const Duration(seconds: 2));
+    if (!mounted) return;
+
+    try {
+      final result = await OtaUpdateService.checkForUpdate();
+      if (result != null && mounted) {
+        OtaUpdateModal.show(context, result);
+      }
+    } catch (_) {}
   }
 
   @override
@@ -167,6 +185,27 @@ class _MainPosScreenState extends State<MainPosScreen> {
     }
   }
 
+  /// Navega a la pantalla de bloqueo por PIN para cambio de cajero o salida de turno
+  void _handleLockOrSwitchShift() {
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (_) => const PinLoginScreen()),
+      (route) => false,
+    );
+  }
+
+  /// Despliega el modal sheet inferior con los datos del negocio, admin y cajero
+  void _openUserBusinessModal() {
+    if (_scaffoldKey.currentState?.isDrawerOpen ?? false) {
+      Navigator.pop(context);
+    }
+    UserBusinessModal.show(
+      context,
+      onNavigateToSettings: () => _onSectionSelected(4),
+      onLockOrSwitchCashier: _handleLockOrSwitchShift,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
@@ -200,29 +239,39 @@ class _MainPosScreenState extends State<MainPosScreen> {
                 Padding(
                   padding: const EdgeInsets.only(right: 12.0),
                   child: Center(
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        CircleAvatar(
-                          radius: 12,
-                          backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.15),
-                          child: Icon(
-                            Icons.person_rounded,
-                            size: 14,
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
+                    child: InkWell(
+                      onTap: _openUserBusinessModal,
+                      borderRadius: BorderRadius.circular(20),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            CircleAvatar(
+                              radius: 12,
+                              backgroundColor: Theme.of(context).colorScheme.primary,
+                              child: Text(
+                                _userName.isNotEmpty ? _userName[0].toUpperCase() : 'U',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: Theme.of(context).colorScheme.onPrimary,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 80),
+                              child: Text(
+                                _userName,
+                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 6),
-                        ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 80),
-                          child: Text(
-                            _userName,
-                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
                   ),
                 ),
@@ -240,6 +289,8 @@ class _MainPosScreenState extends State<MainPosScreen> {
                   _onSectionSelected(index);
                   Navigator.pop(context);
                 },
+                onOpenBusinessProfile: _openUserBusinessModal,
+                onLogoutOrCloseShift: _handleLockOrSwitchShift,
               ),
             ),
             body: IndexedStack(
@@ -261,6 +312,8 @@ class _MainPosScreenState extends State<MainPosScreen> {
                   },
                   businessName: _businessName,
                   userName: _userName,
+                  onOpenBusinessProfile: _openUserBusinessModal,
+                  onLogoutOrCloseShift: _handleLockOrSwitchShift,
                 ),
                 Expanded(
                   child: IndexedStack(

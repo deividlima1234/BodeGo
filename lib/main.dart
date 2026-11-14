@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:bodego/core/theme/app_theme.dart';
+import 'package:bodego/core/services/app_version_service.dart';
 import 'package:bodego/data/local/isar/database_service.dart';
 import 'package:bodego/presentation/screens/auth/splash_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await DatabaseService.init();
+  await AppVersionService.init();
   runApp(const MyApp());
 }
 

@@ -14,6 +14,10 @@ import 'package:bodego/presentation/screens/auth/pin_login_screen.dart';
 import 'package:bodego/presentation/screens/auth/splash_screen.dart';
 import 'package:bodego/presentation/screens/pos/widgets/ticket_preview_modal.dart';
 import 'package:bodego/presentation/screens/settings/widgets/printer_scanner_modal.dart';
+import 'package:bodego/presentation/screens/auth/widgets/legal_terms_modal.dart';
+import 'package:bodego/core/services/app_version_service.dart';
+import 'package:bodego/core/services/ota_update_service.dart';
+import 'package:bodego/presentation/widgets/ota_update_modal.dart';
 
 /// Pantalla completa de Configuración del Sistema BodeGo con categorías colapsables:
 /// - Perfil e Identidad del Negocio (Nombre, RUC, Dirección, Teléfono, Logo).
@@ -275,56 +279,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     await _settingsRepository.updateTheme(themeName);
     AppTheme.setTheme(theme);
-  }
-
-  void _lockTerminal() {
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const PinLoginScreen()),
-      (route) => false,
-    );
-  }
-
-  Future<void> _confirmResetDatabase() async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Row(
-          children: [
-            Icon(Icons.warning_amber_rounded,
-                color: Colors.redAccent, size: 28),
-            SizedBox(width: 8),
-            Text('Reiniciar Sistema'),
-          ],
-        ),
-        content: const Text(
-          '¿Estás seguro de que deseas vaciar la base de datos?\n\n'
-          'Esta acción borrará todos los productos, configuración y usuarios, '
-          'regresando la aplicación al Onboarding inicial.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Vaciar Todo',
-                style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm == true) {
-      await DatabaseService.cleanDb();
-      if (!mounted) return;
-
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const SplashScreen()),
-        (route) => false,
-      );
-    }
   }
 
   void _showLogoPickerSheet() {
@@ -1172,54 +1126,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
 
-            // ==========================================
-            // CATEGORÍA 5: ACCIONES DEL SISTEMA
-            // ==========================================
-            _buildCollapsibleSection(
-              id: 'system',
-              title: 'Acciones Rápidas del Terminal',
-              subtitle: 'Bloqueo y mantenimiento del sistema',
-              icon: Icons.settings_power_rounded,
-              child: Column(
-                children: [
-                  ListTile(
-                    tileColor: theme.scaffoldBackgroundColor,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      side: BorderSide(color: Colors.grey.withOpacity(0.2)),
-                    ),
-                    leading: const Icon(Icons.lock_clock_rounded,
-                        color: Colors.orangeAccent),
-                    title: const Text('Bloquear Terminal',
-                        style: TextStyle(fontWeight: FontWeight.bold)),
-                    subtitle: const Text(
-                        'Regresa a la pantalla de ingreso con PIN del cajero.'),
-                    trailing: const Icon(Icons.chevron_right_rounded),
-                    onTap: _lockTerminal,
-                  ),
-                  const SizedBox(height: 10),
-                  ListTile(
-                    tileColor: theme.scaffoldBackgroundColor,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      side: BorderSide(color: Colors.grey.withOpacity(0.2)),
-                    ),
-                    leading: const Icon(Icons.restart_alt_rounded,
-                        color: Colors.redAccent),
-                    title: const Text(
-                      'Reiniciar / Vaciar Base de Datos',
-                      style: TextStyle(
-                          fontWeight: FontWeight.bold, color: Colors.redAccent),
-                    ),
-                    subtitle: const Text(
-                        'Borra todos los registros y vuelve al Onboarding inicial.'),
-                    trailing: const Icon(Icons.chevron_right_rounded),
-                    onTap: _confirmResetDatabase,
-                  ),
-                ],
-              ),
-            ),
-
             const SizedBox(height: 20),
 
             // Botón Principal de Guardado
@@ -1283,12 +1189,54 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ],
                     ),
                   ),
-                  const SizedBox(height: 5),
+                  const SizedBox(height: 10),
+                  // Botón manual de búsqueda de actualización OTA
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: theme.colorScheme.primary,
+                      side: BorderSide(
+                        color: theme.colorScheme.primary.withOpacity(0.35),
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 10,
+                      ),
+                    ),
+                    icon: const Icon(Icons.system_update_rounded, size: 16),
+                    label: const Text(
+                      'Buscar Actualizaciones OTA (GitHub)',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    onPressed: _checkOtaUpdateManually,
+                  ),
+                  const SizedBox(height: 8),
                   Text(
-                    'BodeGo POS v1.0.0 • eddamcore.com',
+                    '${AppVersionService.displayLabel} • eddamcore.com',
                     style: TextStyle(
                       fontSize: 11,
                       color: theme.colorScheme.onSurface.withOpacity(0.5),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextButton.icon(
+                    onPressed: () => LegalTermsModal.show(context),
+                    icon: const Icon(Icons.gavel_rounded, size: 14),
+                    label: const Text(
+                      'Términos y Privacidad (EddamCore)',
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                    style: TextButton.styleFrom(
+                      foregroundColor: const Color(0xFF4353FF),
+                      visualDensity: VisualDensity.compact,
                     ),
                   ),
                 ],
@@ -1299,6 +1247,61 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       ),
     );
+  }
+
+  /// Verifica manualmente si hay actualizaciones OTA en GitHub mostrando avisos en pantalla
+  Future<void> _checkOtaUpdateManually() async {
+    final messenger = ScaffoldMessenger.of(context);
+
+    messenger.showSnackBar(
+      SnackBar(
+        content: Row(
+          children: const [
+            SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Colors.white,
+              ),
+            ),
+            SizedBox(width: 12),
+            Text('Buscando actualizaciones en GitHub...'),
+          ],
+        ),
+        duration: const Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+
+    final result = await OtaUpdateService.checkForUpdate();
+
+    if (!mounted) return;
+    messenger.hideCurrentSnackBar();
+
+    if (result != null) {
+      OtaUpdateModal.show(context, result);
+    } else {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  '¡BodeGo está al día! Tienes la última versión (${AppVersionService.displayLabel}).',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: const Color(0xFF00D084),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      );
+    }
   }
 
   /// Widget contenedor de categoría colapsable con animación suave
