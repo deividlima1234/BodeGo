@@ -554,7 +554,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
             Expanded(
               child: _buildSimpleCard(
                 title: 'Despachados',
-                value: '${data.itemsSoldCount} unidades',
+                value: '${data.itemsSoldCount % 1 == 0 ? data.itemsSoldCount.toInt() : data.itemsSoldCount.toStringAsFixed(2)} ítems',
                 icon: Icons.inventory_2_rounded,
                 color: Colors.purpleAccent,
               ),
@@ -737,7 +737,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                     overflow: TextOverflow.ellipsis,
                   ),
                   subtitle: Text(
-                    '${product.quantity} unidades despachadas',
+                    '${product.quantity % 1 == 0 ? product.quantity.toInt() : product.quantity.toStringAsFixed(2)} despachados',
                     style: const TextStyle(fontSize: 12, color: Colors.grey),
                   ),
                   trailing: Text(

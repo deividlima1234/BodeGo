@@ -15,10 +15,17 @@ class Product {
 
   double salePrice = 0.0;
 
-  int stock = 0;
+  double stock = 0.0;
 
-  int minStock = 0;
+  double minStock = 0.0;
+
+  String unit = 'und';
 
   final category = IsarLink<Category>();
+
+  /// Indica si el producto permite venta fraccionada / pesaje (kg, g, m, L)
+  @ignore
+  bool get allowsDecimals =>
+      unit == 'kg' || unit == 'g' || unit == 'm' || unit == 'L' || unit == 'litro';
 }
 

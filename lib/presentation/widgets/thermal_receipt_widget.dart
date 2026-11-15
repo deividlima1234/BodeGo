@@ -436,10 +436,12 @@ class ThermalReceiptWidget extends StatelessWidget {
                         Expanded(
                           flex: 2,
                           child: Text(
-                            'x${item.quantity}',
+                            item.unit == 'und'
+                                ? 'x${item.quantity.toInt()}'
+                                : '${item.quantity % 1 == 0 ? item.quantity.toInt() : item.quantity.toStringAsFixed(item.unit == 'kg' ? 3 : 2)} ${item.unit}',
                             style: const TextStyle(
                               fontFamily: 'monospace',
-                              fontSize: 11,
+                              fontSize: 10,
                               fontWeight: FontWeight.bold,
                               color: textColor,
                             ),

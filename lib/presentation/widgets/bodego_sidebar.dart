@@ -48,27 +48,22 @@ class BodeGoSidebar extends StatelessWidget {
       _SidebarItemData(
         title: 'Caja & Venta',
         icon: Icons.point_of_sale_rounded,
-        emoji: '🛒',
       ),
       _SidebarItemData(
         title: 'Inventario & Stock',
         icon: Icons.inventory_2_rounded,
-        emoji: '📦',
       ),
       _SidebarItemData(
         title: 'Clientes & Fiados',
         icon: Icons.people_alt_rounded,
-        emoji: '👥',
       ),
       _SidebarItemData(
         title: 'Reportes & Cierre Z',
         icon: Icons.bar_chart_rounded,
-        emoji: '📊',
       ),
       _SidebarItemData(
         title: 'Configuración',
         icon: Icons.settings_rounded,
-        emoji: '⚙️',
       ),
     ];
 
@@ -380,23 +375,23 @@ class BodeGoSidebar extends StatelessWidget {
 
     final activeBg = colorScheme.primary;
     final inactiveText = isDark
-        ? colorScheme.onSurface.withOpacity(0.85)
-        : colorScheme.onSurface.withOpacity(0.8);
+        ? colorScheme.onSurface.withOpacity(0.92)
+        : colorScheme.onSurface.withOpacity(0.85);
 
     return Tooltip(
       message: showText ? '' : item.title,
       child: Material(
         color: isSelected ? activeBg : Colors.transparent,
         borderRadius: BorderRadius.circular(12),
-        elevation: isSelected ? 2 : 0,
-        shadowColor: colorScheme.primary.withOpacity(0.3),
+        elevation: isSelected ? 1.5 : 0,
+        shadowColor: colorScheme.primary.withOpacity(0.25),
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(12),
           child: Padding(
             padding: EdgeInsets.symmetric(
-              horizontal: showText ? 12 : 0,
-              vertical: 11,
+              horizontal: showText ? 14 : 0,
+              vertical: 12,
             ),
             child: Row(
               mainAxisAlignment: showText
@@ -406,27 +401,24 @@ class BodeGoSidebar extends StatelessWidget {
                 Icon(
                   item.icon,
                   color: isSelected ? colorScheme.onPrimary : inactiveText,
-                  size: 21,
+                  size: 22,
                 ),
                 if (showText) ...[
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 14),
                   Expanded(
                     child: Text(
                       item.title,
                       style: TextStyle(
-                        fontSize: 13.5,
+                        fontSize: 14.5,
                         fontWeight:
-                            isSelected ? FontWeight.bold : FontWeight.w600,
+                            isSelected ? FontWeight.w700 : FontWeight.w500,
                         color:
                             isSelected ? colorScheme.onPrimary : inactiveText,
+                        letterSpacing: 0.15,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                  ),
-                  Text(
-                    item.emoji,
-                    style: const TextStyle(fontSize: 13),
                   ),
                 ],
               ],
@@ -450,30 +442,31 @@ class BodeGoSidebar extends StatelessWidget {
       message: showText ? '' : title,
       child: Material(
         color: Colors.transparent,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(12),
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(12),
           child: Padding(
             padding: EdgeInsets.symmetric(
-              horizontal: showText ? 12 : 0,
-              vertical: 10,
+              horizontal: showText ? 14 : 0,
+              vertical: 11,
             ),
             child: Row(
               mainAxisAlignment: showText
                   ? MainAxisAlignment.start
                   : MainAxisAlignment.center,
               children: [
-                Icon(icon, color: color, size: 20),
+                Icon(icon, color: color, size: 21),
                 if (showText) ...[
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 14),
                   Expanded(
                     child: Text(
                       title,
                       style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
+                        fontSize: 14.0,
+                        fontWeight: FontWeight.w500,
                         color: color,
+                        letterSpacing: 0.1,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -723,11 +716,9 @@ class BodeGoSidebar extends StatelessWidget {
 class _SidebarItemData {
   final String title;
   final IconData icon;
-  final String emoji;
 
   const _SidebarItemData({
     required this.title,
     required this.icon,
-    required this.emoji,
   });
 }

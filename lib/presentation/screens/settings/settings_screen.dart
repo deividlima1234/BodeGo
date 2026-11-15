@@ -1207,7 +1207,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                     icon: const Icon(Icons.system_update_rounded, size: 16),
                     label: const Text(
-                      'Buscar Actualizaciones OTA (GitHub)',
+                      'Buscar Actualizaciones de la APP',
                       style: TextStyle(
                         fontSize: 12.5,
                         fontWeight: FontWeight.bold,

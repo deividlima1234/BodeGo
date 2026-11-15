@@ -1,8 +1,11 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:bodego/data/local/isar/collections/category.dart';
 import 'package:bodego/data/local/isar/collections/product.dart';
 import 'package:bodego/data/local/isar/collections/customer.dart';
 import 'package:bodego/data/models/cart_item.dart';
 import 'package:bodego/data/models/sale_ticket.dart';
+import 'package:bodego/data/repositories/category_repository.dart';
 import 'package:bodego/data/repositories/inventory_repository.dart';
 import 'package:bodego/data/repositories/customer_repository.dart';
 import 'package:bodego/data/repositories/ticket_repository.dart';
@@ -13,9 +16,11 @@ import 'package:bodego/data/repositories/user_repository.dart';
 import 'package:bodego/presentation/screens/pos/sales_history_screen.dart';
 import 'package:bodego/presentation/screens/pos/widgets/customer_picker_modal.dart';
 import 'package:bodego/presentation/screens/pos/widgets/ticket_preview_modal.dart';
+import 'package:bodego/presentation/widgets/modern_barcode_scanner.dart';
+import 'package:bodego/core/services/sound_service.dart';
 
-/// Módulo de Caja (Punto de Venta) con catálogo a pantalla completa,
-/// carrito flotante, emisión de tickets con bordes dentados y gestión de fiados.
+/// Módulo de Caja (Punto de Venta) con catálogo reactivo en tiempo real,
+/// filtros por categoría, carrito flotante, emisión de tickets y gestión de fiados.
 class PosModuleScreen extends StatefulWidget {
   const PosModuleScreen({super.key});
 
@@ -32,8 +37,13 @@ class _PosModuleScreenState extends State<PosModuleScreen> {
 
   List<Product> _allProducts = [];
   List<Product> _filteredProducts = [];
+  List<Category> _categories = [];
+  int? _selectedCategoryId; // null = Todas las categorías
   final List<CartItem> _cart = [];
   final TextEditingController _searchController = TextEditingController();
+
+  StreamSubscription<void>? _productsSubscription;
+  StreamSubscription<void>? _categoriesSubscription;
 
   /// Cliente seleccionado para la venta actual (`null` representa Público General / Al Contado).
   Customer? _selectedCustomer;
@@ -45,14 +55,28 @@ class _PosModuleScreenState extends State<PosModuleScreen> {
   @override
   void initState() {
     super.initState();
-    _loadProducts();
+    _loadInitialData();
     _loadSessionData();
+    _initRealtimeSubscriptions();
   }
 
   @override
   void dispose() {
+    _productsSubscription?.cancel();
+    _categoriesSubscription?.cancel();
     _searchController.dispose();
     super.dispose();
+  }
+
+  /// Inicializa las suscripciones reactivas en tiempo real a la base de datos Isar.
+  void _initRealtimeSubscriptions() {
+    _productsSubscription = _inventoryRepository.watchProducts().listen((_) {
+      _reloadProductsSilently();
+    });
+
+    _categoriesSubscription = _inventoryRepository.watchCategories().listen((_) {
+      _reloadCategoriesSilently();
+    });
   }
 
   Future<void> _loadSessionData() async {
@@ -68,39 +92,284 @@ class _PosModuleScreenState extends State<PosModuleScreen> {
     }
   }
 
-  /// Carga los productos de Isar y los asigna a las listas de catálogo.
-  Future<void> _loadProducts() async {
+  /// Carga inicial de productos y categorías con feedback de carga.
+  Future<void> _loadInitialData() async {
     setState(() => _isLoading = true);
-    final products = await _inventoryRepository.getProducts();
+    await Future.wait([
+      _fetchProducts(),
+      _fetchCategories(),
+    ]);
 
     if (mounted) {
       setState(() {
-        _allProducts = products;
-        _filteredProducts = products;
+        _applyFilters();
         _isLoading = false;
       });
     }
   }
 
-  /// Filtra los productos por nombre o código de barras en tiempo real.
-  void _onSearchChanged(String query) {
-    final cleanQuery = query.trim().toLowerCase();
-    setState(() {
-      if (cleanQuery.isEmpty) {
-        _filteredProducts = _allProducts;
-      } else {
-        _filteredProducts = _allProducts.where((product) {
-          final matchesName = product.name.toLowerCase().contains(cleanQuery);
-          final matchesBarcode =
-              product.barcode?.toLowerCase().contains(cleanQuery) ?? false;
-          return matchesName || matchesBarcode;
-        }).toList();
+  /// Obtiene los productos cargando sus relaciones de categoría.
+  Future<void> _fetchProducts() async {
+    final products = await _inventoryRepository.getProducts();
+    _allProducts = products;
+  }
+
+  /// Obtiene las categorías de la base de datos (poblando iniciales si está vacía).
+  Future<void> _fetchCategories() async {
+    var categories = await _inventoryRepository.getCategories();
+    if (categories.isEmpty) {
+      await CategoryRepository().seedInitialCategories();
+      categories = await _inventoryRepository.getCategories();
+    }
+    _categories = categories;
+  }
+
+  /// Actualización silenciosa de productos tras cambios en Isar DB (sin parpadeo en UI).
+  Future<void> _reloadProductsSilently() async {
+    await _fetchProducts();
+    if (mounted) {
+      setState(() {
+        _syncCartWithUpdatedProducts();
+        _applyFilters();
+      });
+    }
+  }
+
+  /// Actualización silenciosa de categorías tras cambios en Isar DB.
+  Future<void> _reloadCategoriesSilently() async {
+    await _fetchCategories();
+    if (mounted) {
+      if (_selectedCategoryId != null &&
+          !_categories.any((c) => c.id == _selectedCategoryId)) {
+        _selectedCategoryId = null;
       }
+      setState(() {
+        _applyFilters();
+      });
+    }
+  }
+
+  /// Mantiene la integridad del carrito si un producto cambió de existencias o fue eliminado.
+  void _syncCartWithUpdatedProducts() {
+    for (int i = _cart.length - 1; i >= 0; i--) {
+      final cartItem = _cart[i];
+      final matchingProduct = _allProducts
+          .where((p) => p.id == cartItem.product.id)
+          .firstOrNull;
+
+      if (matchingProduct == null) {
+        _cart.removeAt(i);
+      } else {
+        cartItem.product = matchingProduct;
+        if (matchingProduct.stock <= 0) {
+          _cart.removeAt(i);
+        } else if (cartItem.quantity > matchingProduct.stock) {
+          cartItem.quantity = matchingProduct.stock;
+        }
+      }
+    }
+  }
+
+  /// Aplica los filtros combinados de búsqueda textual y categoría activa.
+  void _applyFilters() {
+    final cleanQuery = _searchController.text.trim().toLowerCase();
+
+    _filteredProducts = _allProducts.where((product) {
+      // 1. Filtro por categoría seleccionada
+      if (_selectedCategoryId != null) {
+        if (product.category.value?.id != _selectedCategoryId) {
+          return false;
+        }
+      }
+
+      // 2. Filtro por coincidencia de texto (nombre o código de barras)
+      if (cleanQuery.isNotEmpty) {
+        final matchesName = product.name.toLowerCase().contains(cleanQuery);
+        final matchesBarcode =
+            product.barcode?.toLowerCase().contains(cleanQuery) ?? false;
+        if (!matchesName && !matchesBarcode) {
+          return false;
+        }
+      }
+
+      return true;
+    }).toList();
+  }
+
+  /// Evento al escribir en la barra de búsqueda.
+  void _onSearchChanged(String query) {
+    setState(() {
+      _applyFilters();
     });
   }
 
-  /// Agrega un producto al carrito de compras y actualiza la UI.
-  void _addToCart(Product product) {
+  /// Evento al seleccionar un filtro de categoría.
+  void _onCategorySelected(int? categoryId) {
+    setState(() {
+      _selectedCategoryId = categoryId;
+      _applyFilters();
+    });
+  }
+
+  /// Abre el escáner moderno e inteligente en modo continuo para la Caja.
+  Future<void> _openPOSScanner() async {
+    await Navigator.push<void>(
+      context,
+      MaterialPageRoute(
+        builder: (scannerCtx) {
+          return StatefulBuilder(
+            builder: (ctx, setScannerState) {
+              final theme = Theme.of(context);
+              final colorScheme = theme.colorScheme;
+              final cartCount = _cart.length;
+              final cartTotal = _cartTotal;
+
+              return ModernBarcodeScanner(
+                isContinuousMode: true,
+                title: 'Caja - Escáner Continuo',
+                subtitle: 'Apunta a los productos para agregarlos al carrito',
+                onBarcodeScanned: (scannedCode) async {
+                  return await _processScannedBarcodeInPOS(
+                    scannedCode,
+                    onCartUpdated: () {
+                      setScannerState(() {});
+                      if (mounted) setState(() {});
+                    },
+                  );
+                },
+                bottomBar: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: colorScheme.surface,
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.35),
+                        blurRadius: 10,
+                        offset: const Offset(0, -4),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            '$cartCount ${cartCount == 1 ? 'producto' : 'productos'}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: colorScheme.onSurface.withOpacity(0.7),
+                            ),
+                          ),
+                          Text(
+                            'S/ ${cartTotal.toStringAsFixed(2)}',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: colorScheme.primary,
+                            ),
+                          ),
+                        ],
+                      ),
+                      ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: colorScheme.primary,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        icon: const Icon(Icons.shopping_cart_checkout_rounded, size: 18),
+                        label: const Text(
+                          'Ver Carrito',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        onPressed: () {
+                          Navigator.pop(scannerCtx);
+                          if (_cart.isNotEmpty) {
+                            _showCartBottomSheet(context);
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+
+  /// Procesa un código de barras detectado (vía cámara o pistola física).
+  Future<String?> _processScannedBarcodeInPOS(
+    String barcode, {
+    VoidCallback? onCartUpdated,
+  }) async {
+    final cleanCode = barcode.trim();
+    if (cleanCode.isEmpty) return null;
+
+    // Buscar en la lista en memoria o en la base de datos Isar
+    Product? product;
+    try {
+      product = _allProducts.firstWhere(
+        (p) => p.barcode != null && p.barcode!.trim() == cleanCode,
+      );
+    } catch (_) {
+      product = await _inventoryRepository.getProductByBarcode(cleanCode);
+    }
+
+    if (product == null) {
+      SoundService.playErrorBeep();
+      return 'Código "$cleanCode" no encontrado en catálogo';
+    }
+
+    if (product.stock <= 0) {
+      SoundService.playErrorBeep();
+      return 'Sin existencias de "${product.name}"';
+    }
+
+    // Si es producto a granel (kg, m, L, etc.), abrir modal de pesaje/importe
+    if (product.allowsDecimals) {
+      if (mounted) {
+        await _showBulkMeasurementModal(product);
+        onCartUpdated?.call();
+        return 'Pesaje completado: ${product.name}';
+      }
+      return null;
+    }
+
+    // Si es unitario, agregar +1 al carrito
+    _addToCart(product, quantity: 1.0);
+    onCartUpdated?.call();
+    return '✓ ${product.name} (+1)';
+  }
+
+  /// Soporte para lectores de barras físicos USB/Bluetooth conectados a la Caja.
+  Future<void> _handleHardwareBarcodeScan(String text) async {
+    final clean = text.trim();
+    if (clean.isEmpty) return;
+
+    final result = await _processScannedBarcodeInPOS(clean);
+    if (mounted && result != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(result),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+    _searchController.clear();
+    _onSearchChanged('');
+  }
+
+  /// Agrega o actualiza la cantidad de un producto en el carrito de compras.
+  void _addToCart(Product product, {double quantity = 1.0, bool replaceQuantity = false}) {
     if (product.stock <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -115,20 +384,33 @@ class _PosModuleScreenState extends State<PosModuleScreen> {
     setState(() {
       final index = _cart.indexWhere((item) => item.product.id == product.id);
       if (index >= 0) {
-        if (_cart[index].quantity < product.stock) {
-          _cart[index].quantity++;
+        final newQuantity = replaceQuantity ? quantity : _cart[index].quantity + quantity;
+        if (newQuantity <= product.stock) {
+          _cart[index].quantity = newQuantity;
         } else {
+          _cart[index].quantity = product.stock;
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Stock máximo alcanzado (${product.stock} und)'),
+              content: Text('Stock máximo alcanzado (${_formatStock(product.stock, product.unit)})'),
               duration: const Duration(seconds: 1),
             ),
           );
         }
       } else {
-        _cart.add(CartItem(product: product));
+        final initialQty = quantity <= product.stock ? quantity : product.stock;
+        _cart.add(CartItem(product: product, quantity: initialQty));
       }
     });
+  }
+
+  /// Gestiona la selección de un producto en el catálogo:
+  /// Si es pesable/medible (kg, m, L) abre el modal de pesaje; si es unitario suma +1.
+  void _onProductCardTapped(Product product) {
+    if (product.allowsDecimals) {
+      _showBulkMeasurementModal(product);
+    } else {
+      _addToCart(product, quantity: 1.0);
+    }
   }
 
   /// Getter que calcula el total acumulado de todos los ítems en el carrito.
@@ -160,6 +442,7 @@ class _PosModuleScreenState extends State<PosModuleScreen> {
               quantity: item.quantity,
               unitPrice: item.product.salePrice,
               subtotal: item.subtotal,
+              unit: item.product.unit,
             ))
         .toList();
 
@@ -176,7 +459,7 @@ class _PosModuleScreenState extends State<PosModuleScreen> {
       _cart.clear();
       _selectedCustomer = null;
     });
-    _loadProducts();
+    _reloadProductsSilently();
 
     // Impresión automática en ticketera si está vinculada y activa
     final printerConfig = await PrinterRepository().getConfig();
@@ -260,6 +543,7 @@ class _PosModuleScreenState extends State<PosModuleScreen> {
               quantity: item.quantity,
               unitPrice: item.product.salePrice,
               subtotal: item.subtotal,
+              unit: item.product.unit,
             ))
         .toList();
 
@@ -280,7 +564,7 @@ class _PosModuleScreenState extends State<PosModuleScreen> {
       _cart.clear();
       _selectedCustomer = null;
     });
-    _loadProducts();
+    _reloadProductsSilently();
 
     // Impresión automática en ticketera si está vinculada y activa
     final printerConfig = await PrinterRepository().getConfig();
@@ -801,7 +1085,7 @@ class _PosModuleScreenState extends State<PosModuleScreen> {
 
         const SizedBox(width: 12),
 
-        // Controles de cantidad (- y +)
+        // Controles de cantidad (- y +) con soporte para unidades fraccionarias
         Container(
           decoration: BoxDecoration(
             color: theme.scaffoldBackgroundColor,
@@ -817,9 +1101,12 @@ class _PosModuleScreenState extends State<PosModuleScreen> {
                 constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                 splashRadius: 18,
                 onPressed: () {
+                  final step = item.product.allowsDecimals
+                      ? (item.product.unit == 'kg' ? 0.25 : 0.5)
+                      : 1.0;
                   setModalState(() {
-                    if (item.quantity > 1) {
-                      item.quantity--;
+                    if (item.quantity > step) {
+                      item.quantity -= step;
                     } else {
                       _cart.remove(item);
                     }
@@ -831,13 +1118,22 @@ class _PosModuleScreenState extends State<PosModuleScreen> {
                   }
                 },
               ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                child: Text(
-                  '${item.quantity}',
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
+              InkWell(
+                onTap: item.product.allowsDecimals
+                    ? () {
+                        Navigator.pop(modalContext);
+                        _showBulkMeasurementModal(item.product, existingCartItem: item);
+                      }
+                    : null,
+                borderRadius: BorderRadius.circular(6),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 3.0),
+                  child: Text(
+                    item.formattedQuantity,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ),
@@ -847,15 +1143,18 @@ class _PosModuleScreenState extends State<PosModuleScreen> {
                 constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                 splashRadius: 18,
                 onPressed: () {
-                  if (item.quantity < item.product.stock) {
+                  final step = item.product.allowsDecimals
+                      ? (item.product.unit == 'kg' ? 0.25 : 0.5)
+                      : 1.0;
+                  if (item.quantity + step <= item.product.stock) {
                     setModalState(() {
-                      item.quantity++;
+                      item.quantity += step;
                     });
                     setState(() {});
                   } else {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text('Stock límite (${item.product.stock} und)'),
+                        content: Text('Stock máximo alcanzado (${_formatStock(item.product.stock, item.product.unit)})'),
                         duration: const Duration(seconds: 1),
                       ),
                     );
@@ -901,7 +1200,7 @@ class _PosModuleScreenState extends State<PosModuleScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // 1. Buscador de productos con botón de acceso al Historial de Tickets
+            // 1. Buscador de productos con escáner integrado y acceso al Historial de Tickets
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
               child: Row(
@@ -910,18 +1209,31 @@ class _PosModuleScreenState extends State<PosModuleScreen> {
                     child: TextField(
                       controller: _searchController,
                       onChanged: _onSearchChanged,
+                      onSubmitted: _handleHardwareBarcodeScan,
                       decoration: InputDecoration(
-                        hintText: 'Buscar producto o código de barras...',
+                        hintText: 'Buscar o escanear código...',
                         prefixIcon: const Icon(Icons.search_rounded),
-                        suffixIcon: _searchController.text.isNotEmpty
-                            ? IconButton(
-                                icon: const Icon(Icons.clear_rounded),
+                        suffixIcon: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (_searchController.text.isNotEmpty)
+                              IconButton(
+                                icon: const Icon(Icons.clear_rounded, size: 20),
                                 onPressed: () {
                                   _searchController.clear();
                                   _onSearchChanged('');
                                 },
-                              )
-                            : null,
+                              ),
+                            IconButton(
+                              icon: Icon(
+                                Icons.qr_code_scanner_rounded,
+                                color: theme.colorScheme.primary,
+                              ),
+                              tooltip: 'Escanear con Cámara (Continuo)',
+                              onPressed: _openPOSScanner,
+                            ),
+                          ],
+                        ),
                         filled: true,
                         fillColor: theme.colorScheme.surface,
                         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -951,7 +1263,11 @@ class _PosModuleScreenState extends State<PosModuleScreen> {
               ),
             ),
 
-            // 2. Cuadrícula de productos a pantalla completa
+            // 2. Filtro horizontal de categorías desde la BD
+            if (_categories.isNotEmpty)
+              _buildCategoryFilterBar(theme),
+
+            // 3. Cuadrícula de productos a pantalla completa
             Expanded(
               child: _isLoading
                   ? const Center(child: CircularProgressIndicator())
@@ -988,7 +1304,7 @@ class _PosModuleScreenState extends State<PosModuleScreen> {
 
     // Cantidad actual de este producto en el carrito para feedback visual
     final cartIndex = _cart.indexWhere((item) => item.product.id == product.id);
-    final int quantityInCart = cartIndex >= 0 ? _cart[cartIndex].quantity : 0;
+    final double quantityInCart = cartIndex >= 0 ? _cart[cartIndex].quantity : 0.0;
 
     return Material(
       color: theme.colorScheme.surface,
@@ -997,7 +1313,7 @@ class _PosModuleScreenState extends State<PosModuleScreen> {
       shadowColor: Colors.black.withOpacity(0.08),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        onTap: isOutOfStock ? null : () => _addToCart(product),
+        onTap: isOutOfStock ? null : () => _onProductCardTapped(product),
         child: Padding(
           padding: const EdgeInsets.all(12.0),
           child: Column(
@@ -1019,7 +1335,7 @@ class _PosModuleScreenState extends State<PosModuleScreen> {
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
-                      isOutOfStock ? 'Agotado' : '${product.stock} disp.',
+                      isOutOfStock ? 'Agotado' : '${_formatStock(product.stock, product.unit)} disp.',
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.bold,
@@ -1039,10 +1355,10 @@ class _PosModuleScreenState extends State<PosModuleScreen> {
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
-                        '$quantityInCart',
+                        _formatBadgeQuantity(quantityInCart, product.unit),
                         style: const TextStyle(
                           color: Colors.white,
-                          fontSize: 11,
+                          fontSize: 10,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -1082,9 +1398,11 @@ class _PosModuleScreenState extends State<PosModuleScreen> {
                         style: TextStyle(fontSize: 10, color: Colors.grey),
                       ),
                       Text(
-                        'S/ ${product.salePrice.toStringAsFixed(2)}',
+                        product.unit == 'und'
+                            ? 'S/ ${product.salePrice.toStringAsFixed(2)}'
+                            : 'S/ ${product.salePrice.toStringAsFixed(2)}/${product.unit}',
                         style: TextStyle(
-                          fontSize: 16,
+                          fontSize: 14,
                           fontWeight: FontWeight.bold,
                           color: theme.colorScheme.primary,
                         ),
@@ -1100,7 +1418,7 @@ class _PosModuleScreenState extends State<PosModuleScreen> {
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
-                      Icons.add_shopping_cart_rounded,
+                      product.allowsDecimals ? Icons.scale_rounded : Icons.add_shopping_cart_rounded,
                       size: 18,
                       color: isOutOfStock ? Colors.grey : theme.colorScheme.primary,
                     ),
@@ -1114,31 +1432,622 @@ class _PosModuleScreenState extends State<PosModuleScreen> {
     );
   }
 
-  /// Estado vacío si no hay productos en el catálogo.
+  /// Despliega el modal interactivo de pesaje o metraje con dos opciones:
+  /// 1. Por Peso / Cantidad (kg, m, L)
+  /// 2. Por Importe de Dinero (S/)
+  Future<void> _showBulkMeasurementModal(Product product, {CartItem? existingCartItem}) async {
+    final theme = Theme.of(context);
+    final unit = product.unit;
+
+    // Si ya está en el carrito, precargamos su cantidad actual
+    final double initialQty = existingCartItem?.quantity ??
+        (_cart.where((c) => c.product.id == product.id).firstOrNull?.quantity ?? 1.0);
+
+    final quantityController = TextEditingController(
+      text: initialQty % 1 == 0 ? initialQty.toInt().toString() : initialQty.toStringAsFixed(unit == 'kg' ? 3 : 2),
+    );
+    final moneyController = TextEditingController(
+      text: (initialQty * product.salePrice).toStringAsFixed(2),
+    );
+
+    int activeModeIndex = 0; // 0 = Cantidad, 1 = Dinero
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (modalContext, setModalState) {
+            final double currentQty = double.tryParse(quantityController.text.trim()) ?? 0.0;
+            final bool exceedsStock = currentQty > product.stock;
+            final bool isValid = currentQty > 0.0 && !exceedsStock;
+
+            void updateFromQuantity(double newQty) {
+              if (newQty < 0) newQty = 0;
+              setModalState(() {
+                quantityController.text = newQty % 1 == 0
+                    ? newQty.toInt().toString()
+                    : newQty.toStringAsFixed(unit == 'kg' ? 3 : 2);
+                moneyController.text = (newQty * product.salePrice).toStringAsFixed(2);
+              });
+            }
+
+            void updateFromMoney(double money) {
+              if (money < 0) money = 0;
+              final calculatedQty = product.salePrice > 0 ? (money / product.salePrice) : 0.0;
+              setModalState(() {
+                moneyController.text = money.toStringAsFixed(2);
+                quantityController.text = calculatedQty % 1 == 0
+                    ? calculatedQty.toInt().toString()
+                    : calculatedQty.toStringAsFixed(unit == 'kg' ? 3 : 2);
+              });
+            }
+
+            return Container(
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 20,
+                bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+              ),
+              decoration: BoxDecoration(
+                color: theme.scaffoldBackgroundColor,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Barra superior con título y botón de cierre
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                product.name,
+                                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'Precio: S/ ${product.salePrice.toStringAsFixed(2)} por $unit  •  Stock: ${_formatStock(product.stock, unit)}',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: theme.colorScheme.primary,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close_rounded),
+                          onPressed: () => Navigator.pop(ctx),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Selector Segmentado de Modos (Cantidad vs Dinero)
+                    Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surface,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: theme.colorScheme.outline.withOpacity(0.15)),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: InkWell(
+                              onTap: () => setModalState(() => activeModeIndex = 0),
+                              borderRadius: BorderRadius.circular(10),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(vertical: 10),
+                                decoration: BoxDecoration(
+                                  color: activeModeIndex == 0 ? theme.colorScheme.primary : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.scale_rounded,
+                                      size: 16,
+                                      color: activeModeIndex == 0 ? theme.colorScheme.onPrimary : theme.colorScheme.onSurface,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      'Por Cantidad ($unit)',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.bold,
+                                        color: activeModeIndex == 0 ? theme.colorScheme.onPrimary : theme.colorScheme.onSurface,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            child: InkWell(
+                              onTap: () => setModalState(() => activeModeIndex = 1),
+                              borderRadius: BorderRadius.circular(10),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(vertical: 10),
+                                decoration: BoxDecoration(
+                                  color: activeModeIndex == 1 ? theme.colorScheme.primary : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.payments_outlined,
+                                      size: 16,
+                                      color: activeModeIndex == 1 ? theme.colorScheme.onPrimary : theme.colorScheme.onSurface,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      'Por Importe (S/)',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.bold,
+                                        color: activeModeIndex == 1 ? theme.colorScheme.onPrimary : theme.colorScheme.onSurface,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Campo de entrada activo según el modo
+                    if (activeModeIndex == 0) ...[
+                      // Modo 1: Por Cantidad / Peso
+                      TextField(
+                        controller: quantityController,
+                        autofocus: true,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                        decoration: InputDecoration(
+                          labelText: 'Ingresa la cantidad ($unit)',
+                          suffixText: unit,
+                          prefixIcon: const Icon(Icons.fitness_center_rounded),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                          filled: true,
+                        ),
+                        onChanged: (val) {
+                          final parsedQty = double.tryParse(val.trim()) ?? 0.0;
+                          setModalState(() {
+                            moneyController.text = (parsedQty * product.salePrice).toStringAsFixed(2);
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      // Chips de acceso rápido para cantidad
+                      Wrap(
+                        spacing: 8,
+                        children: [
+                          if (unit == 'kg') ...[
+                            _buildQuickChip('+0.25 kg', () => updateFromQuantity(currentQty + 0.25), theme),
+                            _buildQuickChip('+0.50 kg', () => updateFromQuantity(currentQty + 0.50), theme),
+                            _buildQuickChip('+1.00 kg', () => updateFromQuantity(currentQty + 1.00), theme),
+                            _buildQuickChip('+2.00 kg', () => updateFromQuantity(currentQty + 2.00), theme),
+                          ] else if (unit == 'm') ...[
+                            _buildQuickChip('+0.5 m', () => updateFromQuantity(currentQty + 0.5), theme),
+                            _buildQuickChip('+1.0 m', () => updateFromQuantity(currentQty + 1.0), theme),
+                            _buildQuickChip('+2.0 m', () => updateFromQuantity(currentQty + 2.0), theme),
+                            _buildQuickChip('+5.0 m', () => updateFromQuantity(currentQty + 5.0), theme),
+                          ] else if (unit == 'L') ...[
+                            _buildQuickChip('+0.5 L', () => updateFromQuantity(currentQty + 0.5), theme),
+                            _buildQuickChip('+1.0 L', () => updateFromQuantity(currentQty + 1.0), theme),
+                            _buildQuickChip('+2.0 L', () => updateFromQuantity(currentQty + 2.0), theme),
+                          ] else ...[
+                            _buildQuickChip('+1 $unit', () => updateFromQuantity(currentQty + 1.0), theme),
+                            _buildQuickChip('+5 $unit', () => updateFromQuantity(currentQty + 5.0), theme),
+                          ],
+                        ],
+                      ),
+                    ] else ...[
+                      // Modo 2: Por Importe de Dinero
+                      TextField(
+                        controller: moneyController,
+                        autofocus: true,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                        decoration: InputDecoration(
+                          labelText: '¿Cuánto dinero desea el cliente?',
+                          prefixText: 'S/ ',
+                          prefixIcon: const Icon(Icons.attach_money_rounded),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                          filled: true,
+                        ),
+                        onChanged: (val) {
+                          final parsedMoney = double.tryParse(val.trim()) ?? 0.0;
+                          final calculated = product.salePrice > 0 ? (parsedMoney / product.salePrice) : 0.0;
+                          setModalState(() {
+                            quantityController.text = calculated % 1 == 0
+                                ? calculated.toInt().toString()
+                                : calculated.toStringAsFixed(unit == 'kg' ? 3 : 2);
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      // Chips de dinero rápido
+                      Wrap(
+                        spacing: 8,
+                        children: [
+                          _buildQuickChip('S/ 1.00', () => updateFromMoney(1.00), theme),
+                          _buildQuickChip('S/ 2.00', () => updateFromMoney(2.00), theme),
+                          _buildQuickChip('S/ 5.00', () => updateFromMoney(5.00), theme),
+                          _buildQuickChip('S/ 10.00', () => updateFromMoney(10.00), theme),
+                        ],
+                      ),
+                    ],
+
+                    const SizedBox(height: 16),
+
+                    // Resumen de cálculo dinámico
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surface,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: exceedsStock
+                              ? Colors.redAccent
+                              : theme.colorScheme.primary.withOpacity(0.2),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('Cantidad a despachar:', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                              Text(
+                                _formatQuantity(currentQty, unit),
+                                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                              ),
+                            ],
+                          ),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              const Text('Total a cobrar:', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                              Text(
+                                'S/ ${(currentQty * product.salePrice).toStringAsFixed(2)}',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: theme.colorScheme.primary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    if (exceedsStock) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        'La cantidad supera el stock disponible (${_formatStock(product.stock, unit)}).',
+                        style: const TextStyle(color: Colors.redAccent, fontSize: 12, fontWeight: FontWeight.bold),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+
+                    const SizedBox(height: 18),
+
+                    // Botón para agregar al carrito
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: isValid ? theme.colorScheme.primary : Colors.grey,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      ),
+                      onPressed: isValid
+                          ? () {
+                              _addToCart(product, quantity: currentQty, replaceQuantity: existingCartItem != null);
+                              Navigator.pop(ctx);
+                            }
+                          : null,
+                      icon: const Icon(Icons.add_shopping_cart_rounded),
+                      label: Text(
+                        existingCartItem != null
+                            ? 'Actualizar en Carrito • S/ ${(currentQty * product.salePrice).toStringAsFixed(2)}'
+                            : 'Agregar al Carrito • S/ ${(currentQty * product.salePrice).toStringAsFixed(2)}',
+                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildQuickChip(String label, VoidCallback onTap, ThemeData theme) {
+    return ActionChip(
+      label: Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+      backgroundColor: theme.colorScheme.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      side: BorderSide(color: theme.colorScheme.outline.withOpacity(0.2)),
+      onPressed: onTap,
+    );
+  }
+
+  String _formatStock(double stock, String unit) {
+    final clean = (stock.isNaN || stock.isInfinite) ? 0.0 : stock;
+    final u = unit.trim().isEmpty ? 'und' : unit.trim();
+    if (clean % 1 == 0) {
+      return '${clean.toInt()} $u';
+    }
+    return '${clean.toStringAsFixed(u == 'kg' ? 3 : 2)} $u';
+  }
+
+  String _formatQuantity(double qty, String unit) {
+    final clean = (qty.isNaN || qty.isInfinite) ? 0.0 : qty;
+    final u = unit.trim().isEmpty ? 'und' : unit.trim();
+    if (clean % 1 == 0) {
+      return '${clean.toInt()} $u';
+    }
+    return '${clean.toStringAsFixed(u == 'kg' ? 3 : 2)} $u';
+  }
+
+  String _formatBadgeQuantity(double qty, String unit) {
+    final clean = (qty.isNaN || qty.isInfinite) ? 0.0 : qty;
+    final u = unit.trim().isEmpty ? 'und' : unit.trim();
+    if (clean % 1 == 0) {
+      return '${clean.toInt()} $u';
+    }
+    return '${clean.toStringAsFixed(u == 'kg' ? 2 : 1)} $u';
+  }
+
+  /// Barra horizontal deslizable de categorías provenientes de la BD en tiempo real.
+  Widget _buildCategoryFilterBar(ThemeData theme) {
+    final isAllSelected = _selectedCategoryId == null;
+
+    return Container(
+      height: 40,
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ListView.separated(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        scrollDirection: Axis.horizontal,
+        itemCount: _categories.length + 1,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          if (index == 0) {
+            return _buildCategoryChip(
+              label: 'Todos',
+              isSelected: isAllSelected,
+              theme: theme,
+              onTap: () => _onCategorySelected(null),
+              dotColor: null,
+            );
+          }
+
+          final category = _categories[index - 1];
+          final isSelected = _selectedCategoryId == category.id;
+          final dotColor = _parseHexColor(category.hexColor, theme.colorScheme.primary);
+
+          return _buildCategoryChip(
+            label: category.name,
+            isSelected: isSelected,
+            theme: theme,
+            onTap: () {
+              if (isSelected) {
+                _onCategorySelected(null);
+              } else {
+                _onCategorySelected(category.id);
+              }
+            },
+            dotColor: dotColor,
+          );
+        },
+      ),
+    );
+  }
+
+  /// Chip individual de categoría para la barra de filtros.
+  Widget _buildCategoryChip({
+    required String label,
+    required bool isSelected,
+    required ThemeData theme,
+    required VoidCallback onTap,
+    Color? dotColor,
+  }) {
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? colorScheme.primary
+                : (isDark ? colorScheme.surface : Colors.white),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: isSelected
+                  ? colorScheme.primary
+                  : colorScheme.outline.withOpacity(0.18),
+              width: 1.2,
+            ),
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                      color: colorScheme.primary.withOpacity(0.28),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (dotColor != null) ...[
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: isSelected ? Colors.white : dotColor,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 6),
+              ],
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                  color: isSelected
+                      ? colorScheme.onPrimary
+                      : colorScheme.onSurface,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Convierte una cadena hexadecimal a Color de Flutter con salvaguarda por defecto.
+  Color _parseHexColor(String? hexString, Color defaultColor) {
+    if (hexString == null || hexString.isEmpty) return defaultColor;
+    try {
+      final buffer = StringBuffer();
+      if (hexString.length == 6 || hexString.length == 7) buffer.write('ff');
+      buffer.write(hexString.replaceFirst('#', ''));
+      return Color(int.parse(buffer.toString(), radix: 16));
+    } catch (_) {
+      return defaultColor;
+    }
+  }
+
+  /// Estado vacío si no hay productos en el catálogo o no hay coincidencias con los filtros.
   Widget _buildEmptyCatalogState(BuildContext context) {
+    final theme = Theme.of(context);
+    final hasActiveFilters =
+        _searchController.text.trim().isNotEmpty || _selectedCategoryId != null;
+
+    if (_allProducts.isEmpty) {
+      // Caso 1: La base de datos no tiene ningún producto registrado aún
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primary.withOpacity(0.08),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.storefront_outlined,
+                  size: 48,
+                  color: theme.colorScheme.primary,
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Catálogo vacío',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'Aún no hay productos registrados en el sistema.\nPuedes agregarlos desde la sección Inventario & Stock.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey, fontSize: 13, height: 1.4),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Caso 2: Hay productos en la BD, pero ninguno coincide con la búsqueda o la categoría seleccionada
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.storefront_outlined, size: 48, color: Colors.grey),
-          const SizedBox(height: 12),
-          const Text(
-            'Catálogo vacío',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 4),
-          const Text(
-            'No se encontraron productos registrados o que coincidan con la búsqueda.',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.grey, fontSize: 13),
-          ),
-          const SizedBox(height: 16),
-          ElevatedButton.icon(
-            onPressed: _loadProducts,
-            icon: const Icon(Icons.refresh_rounded, size: 18),
-            label: const Text('Recargar Catálogo'),
-          ),
-        ],
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.grey.withOpacity(0.12),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.search_off_rounded,
+                size: 48,
+                color: Colors.grey,
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Sin resultados',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              _selectedCategoryId != null && _searchController.text.trim().isNotEmpty
+                  ? 'No hay productos que coincidan con la búsqueda en esta categoría.'
+                  : _selectedCategoryId != null
+                      ? 'No hay productos registrados en la categoría seleccionada.'
+                      : 'No se encontraron productos que coincidan con la búsqueda.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.grey, fontSize: 13, height: 1.4),
+            ),
+            if (hasActiveFilters) ...[
+              const SizedBox(height: 18),
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                ),
+                onPressed: () {
+                  _searchController.clear();
+                  _selectedCategoryId = null;
+                  setState(() {
+                    _applyFilters();
+                  });
+                },
+                icon: const Icon(Icons.clear_all_rounded, size: 18),
+                label: const Text('Limpiar filtros'),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }

@@ -66,7 +66,7 @@ class TicketPreviewModal extends StatelessWidget {
     }
     buffer.writeln('--------------------------------');
     for (final item in ticket.items) {
-      buffer.writeln('${item.quantity}x ${item.name} - S/ ${item.subtotal.toStringAsFixed(2)}');
+      buffer.writeln('${item.formattedQuantity} x ${item.name} - S/ ${item.subtotal.toStringAsFixed(2)}');
     }
     buffer.writeln('--------------------------------');
     buffer.writeln('*TOTAL: S/ ${ticket.total.toStringAsFixed(2)}*');

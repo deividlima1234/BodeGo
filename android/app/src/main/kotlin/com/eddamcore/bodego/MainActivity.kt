@@ -1,6 +1,8 @@
 package com.eddamcore.bodego
 
 import android.content.Intent
+import android.media.AudioManager
+import android.media.ToneGenerator
 import android.net.Uri
 import android.os.Build
 import androidx.core.content.FileProvider
@@ -11,9 +13,48 @@ import java.io.File
 
 class MainActivity: FlutterActivity() {
     private val OTA_CHANNEL = "com.eddamcore.bodego/ota_updater"
+    private val SOUND_CHANNEL = "com.eddamcore.bodego/sound"
+    private var toneGenerator: ToneGenerator? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+
+        // Canal nativo para efectos de sonido ultra-rápidos (0ms latencia)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, SOUND_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "playScannerBeep" -> {
+                    try {
+                        if (toneGenerator == null) {
+                            toneGenerator = ToneGenerator(AudioManager.STREAM_MUSIC, 100)
+                        }
+                        toneGenerator?.startTone(ToneGenerator.TONE_PROP_BEEP, 110)
+                        result.success(true)
+                    } catch (e: Exception) {
+                        try {
+                            toneGenerator = ToneGenerator(AudioManager.STREAM_MUSIC, 100)
+                            toneGenerator?.startTone(ToneGenerator.TONE_PROP_BEEP, 110)
+                            result.success(true)
+                        } catch (e2: Exception) {
+                            result.error("SOUND_ERROR", e2.localizedMessage, null)
+                        }
+                    }
+                }
+                "playErrorBeep" -> {
+                    try {
+                        if (toneGenerator == null) {
+                            toneGenerator = ToneGenerator(AudioManager.STREAM_MUSIC, 100)
+                        }
+                        toneGenerator?.startTone(ToneGenerator.TONE_PROP_NACK, 250)
+                        result.success(true)
+                    } catch (e: Exception) {
+                        result.error("SOUND_ERROR", e.localizedMessage, null)
+                    }
+                }
+                else -> {
+                    result.notImplemented()
+                }
+            }
+        }
 
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, OTA_CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
@@ -73,5 +114,11 @@ class MainActivity: FlutterActivity() {
                 }
             }
         }
+    }
+
+    override fun onDestroy() {
+        toneGenerator?.release()
+        toneGenerator = null
+        super.onDestroy()
     }
 }

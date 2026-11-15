@@ -15,11 +15,23 @@ class ProductRepository {
   })  : _isar = isar ?? DatabaseService.db,
         _categoryRepository = categoryRepository ?? CategoryRepository();
 
-  /// Obtiene todos los productos del catálogo con sus categorías cargadas.
+  /// Obtiene todos los productos del catálogo con sus categorías cargadas y autoreparación.
   Future<List<Product>> getAllProducts() async {
     final products = await _isar.products.where().sortByName().findAll();
+    bool needsRepair = false;
     for (final product in products) {
+      if (product.stock.isNaN || product.minStock.isNaN || product.unit.isEmpty) {
+        if (product.stock.isNaN) product.stock = 0.0;
+        if (product.minStock.isNaN) product.minStock = 5.0;
+        if (product.unit.isEmpty) product.unit = 'und';
+        needsRepair = true;
+      }
       await product.category.load();
+    }
+    if (needsRepair) {
+      await _isar.writeTxn(() async {
+        await _isar.products.putAll(products);
+      });
     }
     return products;
   }
@@ -94,15 +106,46 @@ class ProductRepository {
     });
   }
 
-  /// Ajusta el stock de un producto (suma o resta según la venta/ingreso).
-  Future<void> updateStock(int productId, int quantitySold) async {
+  /// Ajusta el stock de un producto (suma o resta según la venta/ingreso, soporta decimales).
+  Future<void> updateStock(int productId, double quantitySold) async {
     final product = await _isar.products.get(productId);
     if (product != null) {
       product.stock -= quantitySold;
+      if (product.stock < 0) product.stock = 0;
       await _isar.writeTxn(() async {
         await _isar.products.put(product);
       });
     }
+  }
+
+  /// Recepción de lote / reposición rápida de stock con actualización opcional de costos y precios.
+  Future<void> replenishStock(
+    int productId,
+    double quantityToAdd, {
+    double? newCostPrice,
+    double? newSalePrice,
+  }) async {
+    final product = await _isar.products.get(productId);
+    if (product == null) return;
+
+    final currentStock = (product.stock.isNaN || product.stock < 0) ? 0.0 : product.stock;
+    product.stock = currentStock + quantityToAdd;
+
+    if (newCostPrice != null && newCostPrice >= 0) {
+      product.costPrice = newCostPrice;
+    }
+    if (newSalePrice != null && newSalePrice > 0) {
+      product.salePrice = newSalePrice;
+    }
+
+    await _isar.writeTxn(() async {
+      await _isar.products.put(product);
+    });
+  }
+
+  /// Observa cambios en la colección de productos en tiempo real (Isar reactive Stream).
+  Stream<void> watchProducts() {
+    return _isar.products.watchLazy();
   }
 
   /// Carga datos iniciales de prueba (seed data) con productos típicos de bodega si no hay ninguno.
@@ -220,6 +263,26 @@ class ProductRepository {
           ..stock = 15
           ..minStock = 3,
         catLimpieza
+      ),
+      (
+        Product()
+          ..name = 'Arroz Superior a Granel'
+          ..unit = 'kg'
+          ..costPrice = 3.20
+          ..salePrice = 4.20
+          ..stock = 50.0
+          ..minStock = 5.0,
+        catAbarrotes
+      ),
+      (
+        Product()
+          ..name = 'Azúcar Rubia a Granel'
+          ..unit = 'kg'
+          ..costPrice = 2.80
+          ..salePrice = 3.60
+          ..stock = 40.0
+          ..minStock = 5.0,
+        catAbarrotes
       ),
     ];
 

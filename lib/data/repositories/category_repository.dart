@@ -40,6 +40,11 @@ class CategoryRepository {
     });
   }
 
+  /// Observa cambios en la colección de categorías en tiempo real (Isar reactive Stream).
+  Stream<void> watchCategories() {
+    return _isar.categorys.watchLazy();
+  }
+
   /// Puebla categorías iniciales de muestra típicas para bodegas si no existen.
   Future<void> seedInitialCategories() async {
     final count = await _isar.categorys.count();

@@ -340,7 +340,7 @@ class _LegalTermsModalState extends State<LegalTermsModal>
               borderRadius: BorderRadius.circular(12),
             ),
             child: Text(
-              'Versión ${AppVersionService.versionName} Oficial • Producción',
+              'Versión ${AppVersionService.versionName} Oficial',
               style: const TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.bold,
@@ -405,7 +405,7 @@ class _LegalTermsModalState extends State<LegalTermsModal>
                 _buildContactRow(
                   icon: Icons.location_on_outlined,
                   label: 'Sede Principal:',
-                  value: 'Lima, Perú',
+                  value: 'Cusco, Perú',
                 ),
               ],
             ),

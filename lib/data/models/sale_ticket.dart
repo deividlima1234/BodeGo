@@ -2,9 +2,10 @@
 class SaleTicketItem {
   final int productId;
   final String name;
-  final int quantity;
+  final double quantity;
   final double unitPrice;
   final double subtotal;
+  final String unit;
 
   SaleTicketItem({
     required this.productId,
@@ -12,7 +13,19 @@ class SaleTicketItem {
     required this.quantity,
     required this.unitPrice,
     required this.subtotal,
+    this.unit = 'und',
   });
+
+  /// Formato legible de la cantidad en tickets
+  String get formattedQuantity {
+    if (unit != 'und') {
+      if (quantity % 1 == 0) {
+        return '${quantity.toInt()} $unit';
+      }
+      return '${quantity.toStringAsFixed(unit == 'kg' ? 3 : 2)} $unit';
+    }
+    return '${quantity.toInt()} $unit';
+  }
 
   Map<String, dynamic> toJson() => {
         'productId': productId,
@@ -20,14 +33,16 @@ class SaleTicketItem {
         'quantity': quantity,
         'unitPrice': unitPrice,
         'subtotal': subtotal,
+        'unit': unit,
       };
 
   factory SaleTicketItem.fromJson(Map<String, dynamic> json) => SaleTicketItem(
         productId: json['productId'] as int? ?? 0,
         name: json['name'] as String? ?? 'Producto',
-        quantity: json['quantity'] as int? ?? 1,
+        quantity: (json['quantity'] as num?)?.toDouble() ?? 1.0,
         unitPrice: (json['unitPrice'] as num?)?.toDouble() ?? 0.0,
         subtotal: (json['subtotal'] as num?)?.toDouble() ?? 0.0,
+        unit: json['unit'] as String? ?? 'und',
       );
 }
 

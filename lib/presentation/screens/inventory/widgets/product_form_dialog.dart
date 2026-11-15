@@ -3,6 +3,7 @@ import 'package:bodego/data/local/isar/collections/category.dart';
 import 'package:bodego/data/local/isar/collections/product.dart';
 import 'package:bodego/data/repositories/category_repository.dart';
 import 'package:bodego/data/repositories/product_repository.dart';
+import 'package:bodego/presentation/widgets/modern_barcode_scanner.dart';
 
 /// Diálogo para registrar o editar un producto en el inventario.
 class ProductFormDialog extends StatefulWidget {
@@ -94,8 +95,8 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
       product.barcode = _barcodeController.text.trim().isEmpty ? null : _barcodeController.text.trim();
       product.costPrice = double.tryParse(_costPriceController.text.trim()) ?? 0.0;
       product.salePrice = double.tryParse(_salePriceController.text.trim()) ?? 0.0;
-      product.stock = int.tryParse(_stockController.text.trim()) ?? 0;
-      product.minStock = int.tryParse(_minStockController.text.trim()) ?? 5;
+      product.stock = double.tryParse(_stockController.text.trim()) ?? 0.0;
+      product.minStock = double.tryParse(_minStockController.text.trim()) ?? 5.0;
 
       await _productRepository.saveProduct(product, category: _selectedCategory);
 
@@ -179,6 +180,24 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
                             labelText: 'Código de Barras (Opcional)',
                             hintText: 'Ej. 7750151000103',
                             prefixIcon: const Icon(Icons.qr_code_rounded),
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                Icons.qr_code_scanner_rounded,
+                                color: theme.colorScheme.primary,
+                              ),
+                              tooltip: 'Escanear con Cámara',
+                              onPressed: () async {
+                                final scanned = await ModernBarcodeScanner.scanSingle(
+                                  context,
+                                  title: 'Escanear Código de Barras',
+                                );
+                                if (scanned != null && scanned.isNotEmpty) {
+                                  setState(() {
+                                    _barcodeController.text = scanned;
+                                  });
+                                }
+                              },
+                            ),
                             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                             filled: true,
                             fillColor: theme.colorScheme.surface,

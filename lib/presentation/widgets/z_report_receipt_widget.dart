@@ -125,7 +125,7 @@ class ZReportReceiptWidget extends StatelessWidget {
             const SizedBox(height: 4),
             _buildRow('Comprobantes emitidos:', '${zReport.transactionCount} tickets'),
             const SizedBox(height: 2),
-            _buildRow('Productos despachados:', '${zReport.itemsSoldCount} unidades'),
+            _buildRow('Productos despachados:', '${zReport.itemsSoldCount % 1 == 0 ? zReport.itemsSoldCount.toInt() : zReport.itemsSoldCount.toStringAsFixed(2)} ítems'),
 
             const SizedBox(height: 10),
             const DashedDivider(),

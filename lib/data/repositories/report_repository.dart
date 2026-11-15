@@ -9,7 +9,7 @@ import 'package:bodego/data/repositories/ticket_repository.dart';
 /// Modelo de estadísticas de ventas de un producto específico.
 class TopProductStat {
   final String name;
-  final int quantity;
+  final double quantity;
   final double revenue;
 
   TopProductStat({
@@ -26,7 +26,7 @@ class ShiftReportData {
   final double cashSales;
   final double creditSales;
   final int transactionCount;
-  final int itemsSoldCount;
+  final double itemsSoldCount;
   final double estimatedProfit;
   final double averageTicket;
   final double expectedCashInDrawer;
@@ -62,7 +62,7 @@ class ZReportTicket {
   final double creditSales;
   final double totalSales;
   final int transactionCount;
-  final int itemsSoldCount;
+  final double itemsSoldCount;
   final double expectedCash;
   final double countedCash;
   final double difference;
@@ -131,7 +131,7 @@ class ReportRepository {
     double totalSales = 0.0;
     double cashSales = 0.0;
     double creditSales = 0.0;
-    int itemsSoldCount = 0;
+    double itemsSoldCount = 0.0;
 
     for (final t in todayTickets) {
       totalSales += t.total;

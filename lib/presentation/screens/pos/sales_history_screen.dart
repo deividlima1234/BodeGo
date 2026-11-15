@@ -388,7 +388,7 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
                         ),
                         const SizedBox(width: 8),
                         Text(
-                          '${ticket.items.fold(0, (sum, i) => sum + i.quantity)} ítems',
+                          '${ticket.items.length} ${ticket.items.length == 1 ? 'producto' : 'productos'}',
                           style: const TextStyle(fontSize: 11, color: Colors.grey),
                         ),
                       ],
