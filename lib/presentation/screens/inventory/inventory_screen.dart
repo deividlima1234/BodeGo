@@ -3,6 +3,7 @@ import 'package:bodego/data/local/isar/collections/category.dart';
 import 'package:bodego/data/local/isar/collections/product.dart';
 import 'package:bodego/data/repositories/inventory_repository.dart';
 import 'package:bodego/presentation/widgets/modern_barcode_scanner.dart';
+import 'package:bodego/presentation/screens/inventory/wholesale_stock_screen.dart';
 
 /// Pantalla principal del Módulo de Inventario con pestañas de Productos y Categorías.
 class InventoryScreen extends StatefulWidget {
@@ -1160,6 +1161,26 @@ class _InventoryScreenState extends State<InventoryScreen>
       appBar: AppBar(
         title: const Text('Inventario y Catálogo'),
         centerTitle: false,
+        actions: [
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF4353FF),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              visualDensity: VisualDensity.compact,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            icon: const Icon(Icons.shopping_bag_rounded, size: 16),
+            label: const Text('Modo Mayorista', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const WholesaleStockScreen()),
+              );
+            },
+          ),
+          const SizedBox(width: 12),
+        ],
         bottom: TabBar(
           controller: _tabController,
           indicatorColor: theme.colorScheme.primary,

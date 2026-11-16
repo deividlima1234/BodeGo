@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:bodego/core/theme/app_theme.dart';
+import 'package:bodego/core/services/license_service.dart';
 import 'package:bodego/data/repositories/app_settings_repository.dart';
+import 'package:bodego/presentation/screens/auth/activation_screen.dart';
 import 'package:bodego/presentation/screens/auth/onboarding_screen.dart';
 import 'package:bodego/presentation/screens/auth/pin_login_screen.dart';
 import 'package:bodego/presentation/widgets/bodego_logo.dart';
@@ -85,6 +87,7 @@ class _SplashScreenState extends State<SplashScreen>
 
     try {
       final settings = await _settingsRepository.getSettings();
+      final license = await LicenseService().init();
 
       if (settings.selectedTheme == 'eddamcoreDark') {
         AppTheme.setTheme(BodeGoTheme.eddamcoreDark);
@@ -93,6 +96,19 @@ class _SplashScreenState extends State<SplashScreen>
       }
 
       if (!mounted) return;
+
+      // Si el periodo de prueba terminó y no está activado, dirigir a Activación
+      if (!license.canAccessApp) {
+        Navigator.pushReplacement(
+          context,
+          PageRouteBuilder(
+            pageBuilder: (_, __, ___) => const ActivationScreen(),
+            transitionsBuilder: (_, a, __, c) => FadeTransition(opacity: a, child: c),
+            transitionDuration: const Duration(milliseconds: 400),
+          ),
+        );
+        return;
+      }
 
       if (settings.isFirstRun) {
         Navigator.pushReplacement(

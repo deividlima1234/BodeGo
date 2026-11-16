@@ -6,6 +6,8 @@ import 'package:bodego/presentation/widgets/user_business_modal.dart';
 import 'package:bodego/presentation/screens/auth/widgets/legal_terms_modal.dart';
 import 'package:bodego/presentation/screens/auth/pin_login_screen.dart';
 import 'package:bodego/core/services/app_version_service.dart';
+import 'package:bodego/core/services/license_service.dart';
+import 'package:bodego/data/models/license_info.dart';
 
 /// Barra lateral (Sidebar) moderna, elegante y adaptable para BodeGo.
 /// 
@@ -346,6 +348,51 @@ class BodeGoSidebar extends StatelessWidget {
                                 fontWeight: FontWeight.w800,
                                 color: colorScheme.onPrimary,
                               ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+                // Pill Reactivo de Estado de Licencia / Periodo de Prueba
+                ValueListenableBuilder<LicenseInfo?>(
+                  valueListenable: LicenseService().licenseNotifier,
+                  builder: (context, info, _) {
+                    if (info == null) return const SizedBox.shrink();
+                    final isActivated = info.isActivated;
+                    return Container(
+                      margin: const EdgeInsets.only(top: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: colorScheme.onPrimary.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: isActivated
+                              ? Colors.greenAccent.withOpacity(0.4)
+                              : Colors.amberAccent.withOpacity(0.4),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            isActivated ? Icons.verified_rounded : Icons.timer_outlined,
+                            size: 15,
+                            color: isActivated ? Colors.greenAccent : Colors.amberAccent,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              isActivated
+                                  ? 'Licencia Activa (${info.licenseType.toUpperCase()})'
+                                  : 'Prueba: ${info.trialDaysRemaining} días restantes',
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.bold,
+                                color: colorScheme.onPrimary,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
                         ],

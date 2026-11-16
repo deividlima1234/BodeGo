@@ -1,16 +1,16 @@
 {
-  "latest_version": "1.0.2",
-  "build_number": 3,
-  "download_url": "https://github.com/deividlima1234/BodeGo/releases/download/v1.0.2/bodego-v1.0.2.apk",
+  "latest_version": "1.0.3",
+  "build_number": 4,
+  "download_url": "https://github.com/deividlima1234/BodeGo/releases/download/v1.0.3/bodego-v1.0.3.apk",
   "release_notes": [
-    "Catálogo en tiempo real en Caja con filtros dinámicos por categoría.",
-    "Soporte completo para unidades de medida (kg, g, m, L, und) y ventas a granel.",
-    "Modal interactivo dual de pesaje e importe de dinero (S/) en ventas a granel.",
-    "Recepción rápida de lotes de mercadería (+Lote) y edición integral de productos.",
-    "Escáner inteligente de códigos de barras con feedback háptico y pitido clásico (0ms latencia).",
-    "Rediseño limpio del Sidebar de navegación con tipografía mejorada sin distracciones."
+    "Periodo de prueba de 7 días y licenciamiento offline vinculado a hardware único.",
+    "Consola secreta de desarrollador (5 toques en logo) con generador de claves y diagnóstico.",
+    "Ecosistema Multi-Equipo: vinculación de terminales secundarias con Llave de Acceso (QR y PIN de 6 dígitos).",
+    "Sincronización de catálogo e inventario local por Wi-Fi / Hotspot y respaldo exportable por WhatsApp.",
+    "Botón animado de vinculación rápida y asistente guiado de 3 pasos en el inicio de la app.",
+    "Nuevo Módulo Modo Mayorista & Compras con filtro de stock crítico, calculadora de presupuesto y registro de lotes."
   ],
   "is_mandatory": false,
   "min_supported_version": "1.0.0",
-  "published_at": "2026-11-14"
+  "published_at": "2026-11-15"
 }

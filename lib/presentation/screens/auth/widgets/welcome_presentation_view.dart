@@ -2,17 +2,21 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:bodego/presentation/widgets/bodego_logo.dart';
 import 'package:bodego/presentation/screens/auth/widgets/legal_terms_modal.dart';
+import 'package:bodego/presentation/screens/auth/widgets/animated_pairing_badge.dart';
+import 'package:bodego/presentation/screens/auth/widgets/secondary_device_onboarding_modal.dart';
 
 /// Pantalla de bienvenida institucional y presentación de BodeGo
 /// Muestra qué es, qué hace, el respaldo de EddamCore y los accesos legales.
 class WelcomePresentationView extends StatelessWidget {
   final VoidCallback onStartTour;
   final VoidCallback onSkipToForm;
+  final VoidCallback? onPairedSuccessfully;
 
   const WelcomePresentationView({
     super.key,
     required this.onStartTour,
     required this.onSkipToForm,
+    this.onPairedSuccessfully,
   });
 
   @override
@@ -31,37 +35,52 @@ class WelcomePresentationView extends StatelessWidget {
             children: [
               const SizedBox(height: 8),
 
-              // 1. Badge Superior de Versión Oficial
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF4353FF).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: const Color(0xFF4353FF).withOpacity(0.2),
-                    width: 1,
-                  ),
-                ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.storefront_rounded,
-                      size: 14,
-                      color: Color(0xFF4353FF),
-                    ),
-                    SizedBox(width: 6),
-                    Text(
-                      'Punto de Venta Oficial • Perú',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF4353FF),
-                        letterSpacing: 0.3,
+              // 1. Barra Superior: Badge Oficial + Ícono Animado de Vinculación
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF4353FF).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: const Color(0xFF4353FF).withOpacity(0.2),
+                        width: 1,
                       ),
                     ),
-                  ],
-                ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.storefront_rounded,
+                          size: 14,
+                          color: Color(0xFF4353FF),
+                        ),
+                        SizedBox(width: 6),
+                        Text(
+                          'Punto de Venta Oficial',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF4353FF),
+                            letterSpacing: 0.3,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Ícono Animado de Vinculación de Equipo Secundario
+                  AnimatedPairingBadge(
+                    onTap: () {
+                      SecondaryDeviceOnboardingModal.show(
+                        context,
+                        onPairedSuccessfully: onPairedSuccessfully,
+                      );
+                    },
+                  ),
+                ],
               ),
 
               const SizedBox(height: 20),

@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:bodego/core/services/license_service.dart';
+import 'package:bodego/data/models/license_info.dart';
 import 'package:bodego/data/repositories/app_settings_repository.dart';
 import 'package:bodego/data/repositories/user_repository.dart';
+import 'package:bodego/presentation/screens/auth/activation_screen.dart';
+import 'package:bodego/presentation/screens/auth/widgets/developer_panel_modal.dart';
 import 'package:bodego/presentation/screens/pos/main_pos_screen.dart';
 import 'package:bodego/presentation/widgets/numeric_pad.dart';
 
@@ -15,15 +20,33 @@ class PinLoginScreen extends StatefulWidget {
 class _PinLoginScreenState extends State<PinLoginScreen> {
   final AppSettingsRepository _settingsRepository = AppSettingsRepository();
   final UserRepository _userRepository = UserRepository();
+  final LicenseService _licenseService = LicenseService();
+
   String _pin = '';
   String _businessName = 'BodeGo';
   String? _errorMessage;
   bool _isChecking = false;
 
+  // Contador de toques secretos para el Desarrollador
+  int _logoTapCount = 0;
+  DateTime? _lastLogoTap;
+
   @override
   void initState() {
     super.initState();
     _loadBusinessName();
+    _checkLicense();
+  }
+
+  Future<void> _checkLicense() async {
+    final license = await _licenseService.init();
+    if (!mounted) return;
+    if (!license.canAccessApp) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const ActivationScreen()),
+      );
+    }
   }
 
   Future<void> _loadBusinessName() async {
@@ -32,6 +55,22 @@ class _PinLoginScreenState extends State<PinLoginScreen> {
       setState(() {
         _businessName = settings.businessName!;
       });
+    }
+  }
+
+  void _handleLogoTap() {
+    final now = DateTime.now();
+    if (_lastLogoTap == null || now.difference(_lastLogoTap!) > const Duration(seconds: 2)) {
+      _logoTapCount = 1;
+    } else {
+      _logoTapCount++;
+    }
+    _lastLogoTap = now;
+
+    if (_logoTapCount >= 5) {
+      _logoTapCount = 0;
+      HapticFeedback.heavyImpact();
+      DeveloperPanelModal.show(context);
     }
   }
 
@@ -61,6 +100,17 @@ class _PinLoginScreenState extends State<PinLoginScreen> {
     setState(() {
       _isChecking = true;
     });
+
+    // Validar estado de licencia antes de ingresar
+    final license = await _licenseService.init();
+    if (!license.canAccessApp) {
+      if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const ActivationScreen()),
+      );
+      return;
+    }
 
     final cashier = await _userRepository.validateCashierPin(_pin);
 
@@ -92,20 +142,60 @@ class _PinLoginScreenState extends State<PinLoginScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              const SizedBox(height: 20),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.primary.withOpacity(0.12),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  Icons.lock_rounded,
-                  size: 40,
-                  color: theme.colorScheme.primary,
+              const SizedBox(height: 10),
+
+              // Indicador de Licencia / Periodo de prueba
+              ValueListenableBuilder<LicenseInfo?>(
+                valueListenable: _licenseService.licenseNotifier,
+                builder: (context, info, _) {
+                  if (info == null || info.isActivated) {
+                    return const SizedBox(height: 16);
+                  }
+
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: Colors.amber.withOpacity(0.4)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.timer_outlined, size: 16, color: Colors.amber),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Prueba Gratuita: ${info.trialDaysRemaining} días restantes',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.amber,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+
+              // Logo con toque secreto de 5 toques
+              GestureDetector(
+                onTap: _handleLogoTap,
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primary.withOpacity(0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.lock_rounded,
+                    size: 40,
+                    color: theme.colorScheme.primary,
+                  ),
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 14),
               Text(
                 _businessName,
                 style: theme.textTheme.headlineMedium?.copyWith(
@@ -123,7 +213,7 @@ class _PinLoginScreenState extends State<PinLoginScreen> {
                 ),
                 textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 20),
 
               // Indicadores de los 4 círculos del PIN
               Row(
@@ -156,7 +246,7 @@ class _PinLoginScreenState extends State<PinLoginScreen> {
                 }),
               ),
 
-              const SizedBox(height: 16),
+              const SizedBox(height: 14),
 
               // Mensaje de error o estado de validación
               SizedBox(
@@ -195,3 +285,4 @@ class _PinLoginScreenState extends State<PinLoginScreen> {
     );
   }
 }
+

@@ -15,6 +15,7 @@ import 'package:bodego/presentation/screens/auth/splash_screen.dart';
 import 'package:bodego/presentation/screens/pos/widgets/ticket_preview_modal.dart';
 import 'package:bodego/presentation/screens/settings/widgets/printer_scanner_modal.dart';
 import 'package:bodego/presentation/screens/auth/widgets/legal_terms_modal.dart';
+import 'package:bodego/presentation/screens/settings/linked_devices_screen.dart';
 import 'package:bodego/core/services/app_version_service.dart';
 import 'package:bodego/core/services/ota_update_service.dart';
 import 'package:bodego/presentation/widgets/ota_update_modal.dart';
@@ -1121,6 +1122,40 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     trailing: const Chip(
                       label: Text('Acceso Total', style: TextStyle(fontSize: 11)),
                     ),
+                  ),
+                ],
+              ),
+            ),
+
+            // ==========================================
+            // CATEGORÍA 5: MULTI-EQUIPO Y DISPOSITIVOS
+            // ==========================================
+            _buildCollapsibleSection(
+              id: 'devices',
+              title: 'Multi-Equipo y Sincronización',
+              subtitle: 'Vincular terminales secundarias y exportar catálogo',
+              icon: Icons.devices_rounded,
+              child: Column(
+                children: [
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF4353FF).withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(Icons.qr_code_scanner_rounded, color: Color(0xFF4353FF)),
+                    ),
+                    title: const Text('Vincular y Gestionar Equipos'),
+                    subtitle: const Text('Generar código QR, emparejar con PIN y sincronizar datos'),
+                    trailing: const Icon(Icons.chevron_right_rounded),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const LinkedDevicesScreen()),
+                      );
+                    },
                   ),
                 ],
               ),

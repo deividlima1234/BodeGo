@@ -4,6 +4,7 @@ import 'package:bodego/data/repositories/app_settings_repository.dart';
 import 'package:bodego/data/repositories/business_config_repository.dart';
 import 'package:bodego/data/repositories/user_repository.dart';
 import 'package:bodego/presentation/screens/pos/main_pos_screen.dart';
+import 'package:bodego/presentation/screens/auth/pin_login_screen.dart';
 import 'package:bodego/presentation/widgets/numeric_pad.dart';
 import 'package:bodego/presentation/widgets/bodego_logo.dart';
 import 'package:bodego/presentation/screens/auth/widgets/tour_illustrations.dart';
@@ -249,6 +250,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             setState(() {
               _currentPhase = OnboardingPhase.form;
             });
+          },
+          onPairedSuccessfully: () {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => const PinLoginScreen()),
+            );
           },
         );
       case OnboardingPhase.tour:
