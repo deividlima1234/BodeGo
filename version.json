@@ -1,14 +1,14 @@
 {
-  "latest_version": "1.0.3",
-  "build_number": 4,
-  "download_url": "https://github.com/deividlima1234/BodeGo/releases/download/v1.0.3/bodego-v1.0.3.apk",
+  "latest_version": "1.0.4",
+  "build_number": 5,
+  "download_url": "https://github.com/deividlima1234/BodeGo/releases/download/v1.0.4/bodego-v1.0.4.apk",
   "release_notes": [
-    "Periodo de prueba de 7 días y licenciamiento offline vinculado a hardware único.",
-    "Consola secreta de desarrollador (5 toques en logo) con generador de claves y diagnóstico.",
-    "Ecosistema Multi-Equipo: vinculación de terminales secundarias con Llave de Acceso (QR y PIN de 6 dígitos).",
-    "Sincronización de catálogo e inventario local por Wi-Fi / Hotspot y respaldo exportable por WhatsApp.",
-    "Botón animado de vinculación rápida y asistente guiado de 3 pasos en el inicio de la app.",
-    "Nuevo Módulo Modo Mayorista & Compras con filtro de stock crítico, calculadora de presupuesto y registro de lotes."
+    "Persistencia de Roles: Separación estricta entre Caja Principal (Master) y Terminal Secundaria.",
+    "Handshake bidireccional: La Caja Master ahora registra y visualiza a los equipos secundarios automáticamente.",
+    "Seguridad en Terminales Secundarias: Protección contra desvinculación o alteraciones no autorizadas.",
+    "Sincronización Bidireccional Asistida: Nuevo asistente interactivo para transferir ventas y consolidar existencias.",
+    "Fusión Inteligente de Ventas y Stock: Integración de tickets emitidos en terminales secundarias sin duplicados ni pérdida de información.",
+    "Soporte completo de red local Wi-Fi con auto-reconexión por Código QR."
   ],
   "is_mandatory": false,
   "min_supported_version": "1.0.0",

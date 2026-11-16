@@ -72,3 +72,54 @@ class LinkedDevice {
   }
 }
 
+/// Información de la Caja Master guardada en un dispositivo secundario
+class MasterDeviceInfo {
+  final String masterMachineId;
+  final String masterIp;
+  final String businessName;
+  final DateTime linkedAt;
+  final DateTime? lastSyncAt;
+
+  const MasterDeviceInfo({
+    required this.masterMachineId,
+    required this.masterIp,
+    required this.businessName,
+    required this.linkedAt,
+    this.lastSyncAt,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'masterMachineId': masterMachineId,
+        'masterIp': masterIp,
+        'businessName': businessName,
+        'linkedAt': linkedAt.toIso8601String(),
+        'lastSyncAt': lastSyncAt?.toIso8601String(),
+      };
+
+  factory MasterDeviceInfo.fromJson(Map<String, dynamic> json) => MasterDeviceInfo(
+        masterMachineId: json['masterMachineId'] as String? ?? 'BDG-MASTER',
+        masterIp: json['masterIp'] as String? ?? '192.168.1.1',
+        businessName: json['businessName'] as String? ?? 'BodeGo',
+        linkedAt: json['linkedAt'] != null
+            ? DateTime.parse(json['linkedAt'] as String)
+            : DateTime.now(),
+        lastSyncAt: json['lastSyncAt'] != null
+            ? DateTime.parse(json['lastSyncAt'] as String)
+            : null,
+      );
+
+  MasterDeviceInfo copyWith({
+    String? masterMachineId,
+    String? masterIp,
+    String? businessName,
+    DateTime? lastSyncAt,
+  }) =>
+      MasterDeviceInfo(
+        masterMachineId: masterMachineId ?? this.masterMachineId,
+        masterIp: masterIp ?? this.masterIp,
+        businessName: businessName ?? this.businessName,
+        linkedAt: linkedAt,
+        lastSyncAt: lastSyncAt ?? this.lastSyncAt,
+      );
+}
+

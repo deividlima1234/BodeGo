@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:bodego/core/services/device_pairing_service.dart';
+import 'package:bodego/core/services/license_service.dart';
 import 'package:bodego/data/models/linked_device.dart';
+import 'package:bodego/presentation/screens/settings/widgets/sync_wizard_modal.dart';
 
 /// Pantalla completa de Configuración: "Vincular Dispositivos" (Multi-Equipo & Sincronización)
 class LinkedDevicesScreen extends StatefulWidget {
@@ -15,6 +17,8 @@ class LinkedDevicesScreen extends StatefulWidget {
 class _LinkedDevicesScreenState extends State<LinkedDevicesScreen> {
   final DevicePairingService _pairingService = DevicePairingService();
   bool _isLoading = true;
+  bool _isSecondary = false;
+  MasterDeviceInfo? _masterInfo;
 
   @override
   void initState() {
@@ -24,6 +28,22 @@ class _LinkedDevicesScreenState extends State<LinkedDevicesScreen> {
 
   Future<void> _loadDevices() async {
     setState(() => _isLoading = true);
+    final myLicense = await LicenseService().init();
+
+    // Auto-migración si el equipo secundario se había autoguardado en versiones previas
+    final currentDevices = await _pairingService.getLinkedDevices();
+    final selfIndex = currentDevices.indexWhere((d) => d.machineId == myLicense.machineId);
+    if (selfIndex >= 0) {
+      final selfDevice = currentDevices[selfIndex];
+      await _pairingService.setSecondaryRole(
+        masterMachineId: 'BDG-MASTER',
+        masterIp: selfDevice.ipAddress ?? '10.185.98.193',
+        businessName: 'BodeGo',
+      );
+    }
+
+    _isSecondary = await _pairingService.isSecondaryDevice();
+    _masterInfo = await _pairingService.getMasterInfo();
     await _pairingService.getLinkedDevices();
     if (mounted) setState(() => _isLoading = false);
   }
@@ -296,9 +316,9 @@ class _LinkedDevicesScreenState extends State<LinkedDevicesScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'Vincular Dispositivos',
-          style: TextStyle(fontWeight: FontWeight.bold),
+        title: Text(
+          _isSecondary ? 'Terminal Secundaria' : 'Vincular Dispositivos',
+          style: const TextStyle(fontWeight: FontWeight.bold),
         ),
         actions: [
           IconButton(
@@ -315,121 +335,376 @@ class _LinkedDevicesScreenState extends State<LinkedDevicesScreen> {
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : ValueListenableBuilder<List<LinkedDevice>>(
-              valueListenable: _pairingService.devicesNotifier,
-              builder: (context, devices, _) {
-                return ListView(
-                  padding: const EdgeInsets.all(20),
-                  children: [
-                    // Tarjeta explicativa
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF4353FF).withOpacity(0.08),
-                        borderRadius: BorderRadius.circular(18),
-                        border: Border.all(
-                          color: const Color(0xFF4353FF).withOpacity(0.2),
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: const BoxDecoration(
-                              color: Color(0xFF4353FF),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.devices_rounded,
-                              color: Colors.white,
-                              size: 22,
-                            ),
-                          ),
-                          const SizedBox(width: 14),
-                          const Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Ecosistema Multi-Terminal BodeGo',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                                SizedBox(height: 2),
-                                Text(
-                                  'Permite que el dueño o un segundo cajero sincronice datos y opere el sistema sin limitaciones.',
-                                  style: TextStyle(fontSize: 12, color: Colors.grey),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 24),
+          : _isSecondary
+              ? _buildSecondaryView(theme, isDark)
+              : ValueListenableBuilder<List<LinkedDevice>>(
+                  valueListenable: _pairingService.devicesNotifier,
+                  builder: (context, devices, _) => _buildMasterView(theme, isDark, devices),
+                ),
+    );
+  }
 
-                    // Fila de título y botón agregar
+  /// Vista exclusiva para Terminales Secundarias (Móvil del dueño o segunda caja)
+  /// Sin opciones de desvinculación ni permisos de autorizar a otros
+  Widget _buildSecondaryView(ThemeData theme, bool isDark) {
+    return ListView(
+      padding: const EdgeInsets.all(20),
+      children: [
+        // Tarjeta de estado de Terminal Secundaria
+        Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: const Color(0xFF4353FF).withOpacity(0.08),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: const Color(0xFF4353FF).withOpacity(0.25)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: const BoxDecoration(
+                  color: Color(0xFF4353FF),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.phone_android_rounded, color: Colors.white, size: 26),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         const Text(
-                          'Equipos Autorizados',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                          ),
+                          'Terminal Secundaria',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                         ),
-                        ElevatedButton.icon(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF4353FF),
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: Colors.green.withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(8),
                           ),
-                          icon: const Icon(Icons.qr_code_scanner_rounded, size: 18),
-                          label: const Text('Vincular Equipo (+)'),
-                          onPressed: _showPairNewDeviceModal,
+                          child: const Text(
+                            'VINCULADO • ACTIVO',
+                            style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.green),
+                          ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 16),
-
-                    if (devices.isEmpty) ...[
-                      Center(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 40.0),
-                          child: Column(
-                            children: [
-                              Icon(
-                                Icons.phonelink_off_rounded,
-                                size: 54,
-                                color: Colors.grey.withOpacity(0.5),
-                              ),
-                              const SizedBox(height: 12),
-                              const Text(
-                                'Aún no hay equipos secundarios vinculados',
-                                style: TextStyle(fontWeight: FontWeight.w600),
-                              ),
-                              const SizedBox(height: 4),
-                              const Text(
-                                'Presiona "Vincular Equipo (+)" para generar un código QR y emparejar el teléfono del dueño.',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(fontSize: 12, color: Colors.grey),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ] else ...[
-                      ...devices.map((device) => _buildDeviceCard(device, theme, isDark)),
-                    ],
+                    const SizedBox(height: 4),
+                    Text(
+                      'Este teléfono opera como terminal móvil autorizada vinculada a la Caja Principal.',
+                      style: TextStyle(fontSize: 12, color: isDark ? Colors.grey[400] : Colors.grey[600]),
+                    ),
                   ],
-                );
-              },
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+
+        // Tarjeta con información de la Caja Master
+        const Text(
+          'Caja Principal Enlazada',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+        ),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: theme.cardColor,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: isDark ? Colors.white12 : Colors.black.withOpacity(0.08)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.storefront_rounded, color: Color(0xFF4353FF), size: 24),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      _masterInfo?.businessName ?? 'BodeGo',
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                    ),
+                  ),
+                ],
+              ),
+              const Divider(height: 24),
+              _buildInfoRow('ID Caja Master:', _masterInfo?.masterMachineId ?? 'BDG-MASTER'),
+              const SizedBox(height: 10),
+              _buildInfoRow('IP Caja Master:', _masterInfo?.masterIp ?? '10.185.98.193'),
+              const SizedBox(height: 10),
+              _buildInfoRow(
+                'Última Sincronización:',
+                _masterInfo?.lastSyncAt != null
+                    ? _masterInfo!.lastSyncAt.toString().split('.')[0]
+                    : 'Reciente',
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 24),
+
+        // Acciones disponibles para el equipo secundario
+        const Text(
+          'Acciones de Terminal',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+        ),
+        const SizedBox(height: 12),
+
+        // Botón 1: Sincronizar catálogo con Caja Master vía Wi-Fi
+        SizedBox(
+          width: double.infinity,
+          height: 52,
+          child: ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF4353FF),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              elevation: 0,
             ),
+            icon: const Icon(Icons.sync_rounded),
+            label: const Text(
+              'SINCRONIZAR CON CAJA MASTER (WI-FI)',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5),
+            ),
+            onPressed: () => SyncWizardModal.show(context, onSyncCompleted: _loadDevices),
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        // Botón 2: Importar catálogo por WhatsApp
+        SizedBox(
+          width: double.infinity,
+          height: 48,
+          child: OutlinedButton.icon(
+            style: OutlinedButton.styleFrom(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            ),
+            icon: const Icon(Icons.file_download_rounded),
+            label: const Text('Importar Catálogo (WhatsApp o Archivo)'),
+            onPressed: _importSnapshotDialog,
+          ),
+        ),
+        const SizedBox(height: 28),
+
+        // Aviso de seguridad y restricción de administración
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.grey.withOpacity(0.08),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: Colors.grey.withOpacity(0.2)),
+          ),
+          child: const Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.shield_outlined, size: 20, color: Colors.grey),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Por seguridad de tu negocio, la autorización de nuevas terminales y la desvinculación de equipos sólo puede realizarse desde la Caja Principal (Master).',
+                  style: TextStyle(fontSize: 12, color: Colors.grey, height: 1.35),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _syncWithMasterDirectly() async {
+    final master = _masterInfo;
+    if (master == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No hay datos de Caja Master guardados.')),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    final myLicense = await LicenseService().init();
+    final myIp = await _pairingService.getLocalIp();
+
+    final snapshotJson = await _pairingService.fetchSnapshotFromMaster(
+      ip: master.masterIp,
+      secondaryMachineId: myLicense.machineId,
+      secondaryDeviceName: 'Móvil Dueño / Secundario',
+      secondaryIp: myIp,
+    );
+
+    if (snapshotJson != null && snapshotJson.isNotEmpty) {
+      final success = await _pairingService.importDatabaseSnapshot(snapshotJson);
+      if (success) {
+        await _pairingService.updateMasterLastSync();
+        _masterInfo = await _pairingService.getMasterInfo();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('¡Catálogo sincronizado con la Caja Master exitosamente!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Error al procesar el catálogo descargado.'),
+              backgroundColor: Colors.redAccent,
+            ),
+          );
+        }
+      }
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('No se pudo conectar a la Caja Master en ${master.masterIp}:8089. Verifica que estén en el mismo Wi-Fi.'),
+            backgroundColor: Colors.orange,
+            action: SnackBarAction(
+              label: 'WhatsApp',
+              textColor: Colors.white,
+              onPressed: _importSnapshotDialog,
+            ),
+          ),
+        );
+      }
+    }
+
+    if (mounted) setState(() => _isLoading = false);
+  }
+
+  Widget _buildInfoRow(String label, String value) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label, style: const TextStyle(fontSize: 13, color: Colors.grey)),
+        Text(
+          value,
+          style: const TextStyle(fontFamily: 'monospace', fontWeight: FontWeight.bold, fontSize: 13),
+        ),
+      ],
+    );
+  }
+
+  /// Vista para la Caja Principal (Master): Mantiene control total y lista de autorizados
+  Widget _buildMasterView(ThemeData theme, bool isDark, List<LinkedDevice> devices) {
+    return ListView(
+      padding: const EdgeInsets.all(20),
+      children: [
+        // Tarjeta explicativa
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: const Color(0xFF4353FF).withOpacity(0.08),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: const Color(0xFF4353FF).withOpacity(0.2),
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: const BoxDecoration(
+                  color: Color(0xFF4353FF),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.storefront_rounded,
+                  color: Colors.white,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 14),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Caja Principal (Master)',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                    SizedBox(height: 2),
+                    Text(
+                      'Desde esta terminal puedes autorizar móviles secundarios y gestionar los permisos del negocio.',
+                      style: TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 24),
+
+        // Fila de título y botón agregar
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Equipos Autorizados',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF4353FF),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              icon: const Icon(Icons.qr_code_scanner_rounded, size: 18),
+              label: const Text('Vincular Equipo (+)'),
+              onPressed: _showPairNewDeviceModal,
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+
+        if (devices.isEmpty) ...[
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 40.0),
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.phonelink_off_rounded,
+                    size: 54,
+                    color: Colors.grey.withOpacity(0.5),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Aún no hay equipos secundarios vinculados',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Presiona "Vincular Equipo (+)" para generar un código QR y emparejar el teléfono del dueño.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ] else ...[
+          ...devices.map((device) => _buildDeviceCard(device, theme, isDark)),
+        ],
+      ],
     );
   }
 

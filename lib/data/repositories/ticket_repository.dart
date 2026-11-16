@@ -64,6 +64,7 @@ class TicketRepository {
     required String cashierName,
     required String businessName,
     required List<SaleTicketItem> items,
+    bool? isSynced,
   }) async {
     final existingTickets = await getTickets();
 
@@ -85,6 +86,7 @@ class TicketRepository {
       cashierName: cashierName,
       businessName: businessName,
       items: items,
+      isSynced: isSynced ?? false,
     );
 
     existingTickets.insert(0, ticket);
@@ -94,6 +96,51 @@ class TicketRepository {
     await file.writeAsString(jsonString);
 
     return ticket;
+  }
+
+  /// Obtiene los tickets pendientes de sincronizar hacia la Caja Master
+  Future<List<SaleTicket>> getPendingSyncTickets() async {
+    final tickets = await getTickets();
+    return tickets.where((t) => !t.isSynced).toList();
+  }
+
+  /// Marca una lista de tickets como sincronizados
+  Future<void> markTicketsAsSynced(List<String> ticketIds) async {
+    final tickets = await getTickets();
+    final updated = tickets.map((t) {
+      if (ticketIds.contains(t.id)) {
+        return t.copyWith(isSynced: true);
+      }
+      return t;
+    }).toList();
+
+    final file = await _getFile();
+    final jsonString = jsonEncode(updated.map((t) => t.toJson()).toList());
+    await file.writeAsString(jsonString);
+  }
+
+  /// Fusiona tickets foráneos recibidos de una terminal secundaria evitando duplicados
+  Future<int> mergeIncomingTickets(List<SaleTicket> incoming) async {
+    final currentTickets = await getTickets();
+    final currentIds = currentTickets.map((t) => t.id).toSet();
+
+    int addedCount = 0;
+    for (final inc in incoming) {
+      if (!currentIds.contains(inc.id)) {
+        currentTickets.add(inc.copyWith(isSynced: true));
+        currentIds.add(inc.id);
+        addedCount++;
+      }
+    }
+
+    if (addedCount > 0) {
+      currentTickets.sort((a, b) => b.date.compareTo(a.date));
+      final file = await _getFile();
+      final jsonString = jsonEncode(currentTickets.map((t) => t.toJson()).toList());
+      await file.writeAsString(jsonString);
+    }
+
+    return addedCount;
   }
 
   /// Obtiene un ticket por su identificador.

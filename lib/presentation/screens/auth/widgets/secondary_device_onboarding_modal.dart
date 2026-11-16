@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:bodego/core/services/device_pairing_service.dart';
+import 'package:bodego/core/services/license_service.dart';
 import 'package:bodego/presentation/widgets/modern_barcode_scanner.dart';
 import 'package:bodego/presentation/screens/auth/pin_login_screen.dart';
 
@@ -145,14 +146,33 @@ class _SecondaryDeviceOnboardingModalState
     });
 
     final targetIp = _masterIp ?? _ipController.text.trim();
+    final myLicense = await LicenseService().init();
+    final myIp = await _pairingService.getLocalIp();
+    const deviceName = 'Móvil Dueño / Secundario';
+
+    // 1. Enviar handshake de registro a la Caja Master
+    await _pairingService.registerSecondaryWithMaster(
+      masterIp: targetIp,
+      candidateIps: _candidateIps,
+      port: _masterPort,
+      secondaryMachineId: myLicense.machineId,
+      secondaryDeviceName: deviceName,
+      secondaryIp: myIp,
+      passkey: _passkey,
+    );
+
+    // 2. Descargar snapshot de la base de datos
     final snapshotJson = await _pairingService.fetchSnapshotFromMaster(
       ip: targetIp,
       candidateIps: _candidateIps,
       port: _masterPort,
+      secondaryMachineId: myLicense.machineId,
+      secondaryDeviceName: deviceName,
+      secondaryIp: myIp,
     );
 
     if (snapshotJson != null && snapshotJson.isNotEmpty) {
-      await _applySnapshot(snapshotJson);
+      await _applySnapshot(snapshotJson, masterIp: targetIp);
     } else {
       // Si la red directa no responde (ej. aislamiento de clientes Wi-Fi), ofrecer fallback
       setState(() {
@@ -164,7 +184,7 @@ class _SecondaryDeviceOnboardingModalState
   }
 
   /// Aplica el snapshot JSON recibido (por red o pegado manual)
-  Future<void> _applySnapshot(String rawJson) async {
+  Future<void> _applySnapshot(String rawJson, {String? masterIp}) async {
     try {
       final decoded = jsonDecode(rawJson) as Map<String, dynamic>;
       final prods = (decoded['products'] as List<dynamic>? ?? []);
@@ -175,6 +195,7 @@ class _SecondaryDeviceOnboardingModalState
         businessName: bName,
         masterMachineId: mId,
         rawSnapshotJson: rawJson,
+        masterIp: masterIp ?? _masterIp ?? _ipController.text.trim(),
       );
 
       if (ok) {

@@ -60,6 +60,7 @@ class SaleTicket {
   final String cashierName;
   final String businessName;
   final List<SaleTicketItem> items;
+  final bool isSynced;
 
   SaleTicket({
     required this.id,
@@ -74,7 +75,40 @@ class SaleTicket {
     required this.cashierName,
     required this.businessName,
     required this.items,
+    this.isSynced = false,
   });
+
+  SaleTicket copyWith({
+    String? id,
+    String? ticketNumber,
+    DateTime? date,
+    double? total,
+    bool? isCredit,
+    int? customerId,
+    String? customerName,
+    double? previousDebt,
+    double? newDebt,
+    String? cashierName,
+    String? businessName,
+    List<SaleTicketItem>? items,
+    bool? isSynced,
+  }) {
+    return SaleTicket(
+      id: id ?? this.id,
+      ticketNumber: ticketNumber ?? this.ticketNumber,
+      date: date ?? this.date,
+      total: total ?? this.total,
+      isCredit: isCredit ?? this.isCredit,
+      customerId: customerId ?? this.customerId,
+      customerName: customerName ?? this.customerName,
+      previousDebt: previousDebt ?? this.previousDebt,
+      newDebt: newDebt ?? this.newDebt,
+      cashierName: cashierName ?? this.cashierName,
+      businessName: businessName ?? this.businessName,
+      items: items ?? this.items,
+      isSynced: isSynced ?? this.isSynced,
+    );
+  }
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -89,6 +123,7 @@ class SaleTicket {
         'cashierName': cashierName,
         'businessName': businessName,
         'items': items.map((i) => i.toJson()).toList(),
+        'isSynced': isSynced,
       };
 
   factory SaleTicket.fromJson(Map<String, dynamic> json) => SaleTicket(
@@ -103,6 +138,7 @@ class SaleTicket {
         newDebt: (json['newDebt'] as num?)?.toDouble(),
         cashierName: json['cashierName'] as String? ?? 'Cajero de Turno',
         businessName: json['businessName'] as String? ?? 'BodeGo',
+        isSynced: json['isSynced'] as bool? ?? true,
         items: (json['items'] as List<dynamic>?)
                 ?.map((item) => SaleTicketItem.fromJson(item as Map<String, dynamic>))
                 .toList() ??
