@@ -11,9 +11,11 @@ import 'package:bodego/data/local/isar/database_service.dart';
 import 'package:bodego/data/local/isar/collections/category.dart';
 import 'package:bodego/data/local/isar/collections/product.dart';
 import 'package:bodego/data/local/isar/collections/customer.dart';
+import 'package:bodego/data/local/isar/collections/user.dart';
 import 'package:bodego/data/models/linked_device.dart';
 import 'package:bodego/data/repositories/business_config_repository.dart';
 import 'package:bodego/data/repositories/app_settings_repository.dart';
+import 'package:bodego/data/repositories/user_repository.dart';
 
 /// Resultado de una sesión de emparejamiento generada por el Master
 class PairingSession {
@@ -243,6 +245,7 @@ class DevicePairingService {
     final categories = await isar.categorys.where().sortByName().findAll();
     final products = await isar.products.where().sortByName().findAll();
     final customers = await isar.customers.where().sortByName().findAll();
+    final users = await isar.users.where().findAll();
 
     for (final p in products) {
       await p.category.load();
@@ -253,6 +256,13 @@ class DevicePairingService {
       'exportedAt': DateTime.now().toIso8601String(),
       'machineId': license.machineId,
       'businessName': config.businessName,
+      'businessConfig': {
+        'businessName': config.businessName,
+        'address': config.address,
+        'ruc': config.ruc,
+        'phone': config.phone,
+        'logoValue': config.logoValue,
+      },
       'categories': categories.map((c) => {
         'name': c.name,
         'hexColor': c.hexColor,
@@ -274,6 +284,13 @@ class DevicePairingService {
         'creditLimit': c.creditLimit,
         'currentDebt': c.currentDebt,
       }).toList(),
+      'users': users.map((u) => {
+        'name': u.name,
+        'role': u.role,
+        'email': u.email,
+        'password': u.password,
+        'pin': u.pin,
+      }).toList(),
     };
 
     return jsonEncode(data);
@@ -288,6 +305,7 @@ class DevicePairingService {
       final categoriesData = (json['categories'] as List<dynamic>? ?? []);
       final productsData = (json['products'] as List<dynamic>? ?? []);
       final customersData = (json['customers'] as List<dynamic>? ?? []);
+      final usersData = (json['users'] as List<dynamic>? ?? []);
 
       await isar.writeTxn(() async {
         // 1. Sincronizar Categorías
@@ -349,7 +367,53 @@ class DevicePairingService {
           cust.currentDebt = (item['currentDebt'] as num?)?.toDouble() ?? 0.0;
           await isar.customers.put(cust);
         }
+
+        // 4. Sincronizar Usuarios (Cajeros y Administradores con sus PINs)
+        for (final item in usersData) {
+          final name = (item['name'] as String? ?? '').trim();
+          final role = (item['role'] as String? ?? 'cajero').trim();
+          final pin = (item['pin'] as String?)?.trim();
+          final email = (item['email'] as String?)?.trim();
+          final password = (item['password'] as String?)?.trim();
+
+          if (name.isEmpty) continue;
+
+          var u = await isar.users
+              .filter()
+              .nameEqualTo(name, caseSensitive: false)
+              .and()
+              .roleEqualTo(role)
+              .findFirst();
+
+          u ??= User()
+            ..name = name
+            ..role = role;
+
+          if (pin != null && pin.isNotEmpty) u.pin = pin;
+          if (email != null && email.isNotEmpty) u.email = email;
+          if (password != null && password.isNotEmpty) u.password = password;
+
+          await isar.users.put(u);
+        }
       });
+
+      // 5. Sincronizar Configuración e Identidad del Negocio
+      if (json.containsKey('businessConfig')) {
+        try {
+          final bConf = json['businessConfig'] as Map<String, dynamic>;
+          final curConfig = await BusinessConfigRepository().getConfig();
+          final updatedConfig = curConfig.copyWith(
+            businessName: bConf['businessName'] as String?,
+            address: bConf['address'] as String?,
+            ruc: bConf['ruc'] as String?,
+            phone: bConf['phone'] as String?,
+            logoValue: bConf['logoValue'] as String?,
+          );
+          await BusinessConfigRepository().saveConfig(updatedConfig);
+        } catch (e) {
+          debugPrint('Error sincronizando businessConfig: $e');
+        }
+      }
 
       return true;
     } catch (e) {
@@ -524,6 +588,14 @@ class DevicePairingService {
     // Actualizar nombre de negocio y marcar onboarding como completado
     final appSettingsRepo = AppSettingsRepository();
     await appSettingsRepo.updateBusinessName(businessName);
+
+    // Asegurar que exista al menos un cajero en el dispositivo secundario
+    final userRepo = UserRepository();
+    final allUsers = await userRepo.getAllUsers();
+    final hasCashier = allUsers.any((u) => u.role == 'cajero');
+    if (!hasCashier) {
+      await userRepo.createCashier('Cajero Principal', '1234');
+    }
 
     // Guardar registro de este dispositivo como secundario
     final myLicense = await LicenseService().init();

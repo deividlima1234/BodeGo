@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:bodego/core/services/license_service.dart';
 import 'package:bodego/data/models/license_info.dart';
+import 'package:bodego/data/repositories/user_repository.dart';
+import 'package:bodego/presentation/screens/auth/widgets/secondary_device_onboarding_modal.dart';
 
 /// Modal secreto exclusivo para el Desarrollador y Propietario de BodeGo.
 /// Permite generar claves de activación offline para clientes y diagnosticar el estado del dispositivo.
@@ -648,9 +650,109 @@ class _DeveloperPanelModalState extends State<DeveloperPanelModal>
                 }
               },
             ),
+            const SizedBox(height: 10),
+
+            // Botón 4: Administrar PIN de Cajero
+            ListTile(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              tileColor: const Color(0xFF4353FF).withOpacity(0.1),
+              leading: const Icon(Icons.pin_rounded, color: Color(0xFF4353FF)),
+              title: const Text('Ver o Cambiar PIN de Cajero'),
+              subtitle: const Text('Consulta o reconfigura el PIN de 4 dígitos para ingresar'),
+              onTap: () => _showCashierPinManager(context),
+            ),
+            const SizedBox(height: 10),
+
+            // Botón 5: Reabrir Asistente de Vinculación Secundario
+            ListTile(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              tileColor: Colors.purple.withOpacity(0.1),
+              leading: const Icon(Icons.sync_alt_rounded, color: Colors.purple),
+              title: const Text('Reabrir Asistente de Vinculación'),
+              subtitle: const Text('Vuelve a sincronizar datos desde la Caja Master'),
+              onTap: () {
+                Navigator.pop(context);
+                SecondaryDeviceOnboardingModal.show(context);
+              },
+            ),
           ],
         );
       },
+    );
+  }
+
+  void _showCashierPinManager(BuildContext context) async {
+    final userRepo = UserRepository();
+    final cashier = await userRepo.getFirstCashier();
+    final pinController = TextEditingController(text: cashier?.pin ?? '');
+
+    if (!context.mounted) return;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.pin_rounded, color: Color(0xFF4353FF)),
+            SizedBox(width: 10),
+            Text('PIN de Cajero'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              cashier != null
+                  ? 'Cajero: ${cashier.name}\nPIN actual: ${cashier.pin ?? "Sin PIN"}'
+                  : 'No hay cajero registrado aún en este equipo.',
+              style: const TextStyle(fontSize: 13, color: Colors.grey),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: pinController,
+              keyboardType: TextInputType.number,
+              maxLength: 4,
+              decoration: InputDecoration(
+                labelText: 'Nuevo PIN de 4 dígitos',
+                counterText: '',
+                prefixIcon: const Icon(Icons.lock_rounded),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF4353FF),
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () async {
+              final newPin = pinController.text.trim();
+              if (newPin.length != 4) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('El PIN debe tener exactamente 4 dígitos.')),
+                );
+                return;
+              }
+              await userRepo.updateOrCreateCashierPin(newPin);
+              if (ctx.mounted) Navigator.pop(ctx);
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('PIN de cajero guardado: $newPin')),
+                );
+              }
+            },
+            child: const Text('Guardar PIN'),
+          ),
+        ],
+      ),
     );
   }
 }

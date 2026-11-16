@@ -57,5 +57,22 @@ class UserRepository {
   Future<User?> getFirstAdmin() async {
     return await _isar.users.filter().roleEqualTo('admin').findFirst();
   }
+
+  /// Actualiza o crea el PIN del primer cajero registrado.
+  Future<void> updateOrCreateCashierPin(String pin, {String name = 'Cajero Principal'}) async {
+    final existing = await getFirstCashier();
+    await _isar.writeTxn(() async {
+      if (existing != null) {
+        existing.pin = pin.trim();
+        await _isar.users.put(existing);
+      } else {
+        final cashier = User()
+          ..name = name.trim()
+          ..role = 'cajero'
+          ..pin = pin.trim();
+        await _isar.users.put(cashier);
+      }
+    });
+  }
 }
 

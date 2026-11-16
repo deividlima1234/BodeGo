@@ -122,6 +122,28 @@ class _PinLoginScreenState extends State<PinLoginScreen> {
         MaterialPageRoute(builder: (_) => const MainPosScreen()),
       );
     } else {
+      // Verificar si hay algún cajero registrado en este equipo
+      final allUsers = await _userRepository.getAllUsers();
+      final hasCashiers = allUsers.any((u) => u.role == 'cajero');
+
+      if (!hasCashiers) {
+        // En este dispositivo aún no hay cajero registrado (ej. equipo vinculado antes de sincronizar usuarios)
+        // Se crea automáticamente el cajero con este PIN de 4 dígitos para permitir el acceso inmediato
+        await _userRepository.createCashier('Cajero Principal', _pin);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('PIN configurado con éxito para este equipo.'),
+            backgroundColor: Color(0xFF4353FF),
+          ),
+        );
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const MainPosScreen()),
+        );
+        return;
+      }
+
       setState(() {
         _isChecking = false;
         _errorMessage = 'PIN incorrecto. Intenta nuevamente.';
