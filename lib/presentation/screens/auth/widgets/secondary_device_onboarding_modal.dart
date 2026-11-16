@@ -42,6 +42,7 @@ class _SecondaryDeviceOnboardingModalState
 
   // Variables de emparejamiento
   String? _masterIp;
+  List<String> _candidateIps = [];
   int _masterPort = DevicePairingService.defaultPort;
   String? _passkey;
   String _businessName = 'BodeGo';
@@ -49,7 +50,7 @@ class _SecondaryDeviceOnboardingModalState
 
   // Controladores de texto para modo manual
   final TextEditingController _pinController = TextEditingController();
-  final TextEditingController _ipController = TextEditingController(text: '192.168.4.1');
+  final TextEditingController _ipController = TextEditingController(text: '192.168.1.1');
   final TextEditingController _fallbackJsonController = TextEditingController();
 
   bool _isSyncing = false;
@@ -60,10 +61,23 @@ class _SecondaryDeviceOnboardingModalState
   @override
   void initState() {
     super.initState();
+    _initLocalNetworkHint();
     _waveAnimController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1500),
     )..repeat(reverse: true);
+  }
+
+  Future<void> _initLocalNetworkHint() async {
+    try {
+      final myIp = await _pairingService.getLocalIp();
+      if (mounted && myIp.contains('.')) {
+        final parts = myIp.split('.');
+        if (parts.length == 4) {
+          _ipController.text = '${parts[0]}.${parts[1]}.${parts[2]}.1';
+        }
+      }
+    } catch (_) {}
   }
 
   @override
@@ -93,8 +107,13 @@ class _SecondaryDeviceOnboardingModalState
       final decodedJson = utf8.decode(base64Url.decode(base64String));
       final Map<String, dynamic> data = jsonDecode(decodedJson) as Map<String, dynamic>;
 
+      final candidateList = (data['candidateIps'] as List<dynamic>? ?? [])
+          .map((e) => e.toString())
+          .toList();
+
       setState(() {
-        _masterIp = data['ip'] as String? ?? '192.168.4.1';
+        _masterIp = data['ip'] as String? ?? (candidateList.isNotEmpty ? candidateList.first : '192.168.1.1');
+        _candidateIps = candidateList;
         _masterPort = (data['port'] as num?)?.toInt() ?? DevicePairingService.defaultPort;
         _passkey = data['passkey'] as String?;
         _businessName = data['business'] as String? ?? 'BodeGo';
@@ -125,6 +144,7 @@ class _SecondaryDeviceOnboardingModalState
     final targetIp = _masterIp ?? _ipController.text.trim();
     final snapshotJson = await _pairingService.fetchSnapshotFromMaster(
       ip: targetIp,
+      candidateIps: _candidateIps,
       port: _masterPort,
     );
 

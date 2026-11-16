@@ -20,6 +20,7 @@ class PairingSession {
   final String passkey; // PIN de 6 dígitos
   final String qrPayload; // Cadena de texto para el Código QR
   final String localIp; // IP local del servidor Wi-Fi
+  final List<String> candidateIps; // Todas las IPs candidatas locales
   final int port; // Puerto (ej: 8089)
   final DateTime expiresAt;
 
@@ -27,6 +28,7 @@ class PairingSession {
     required this.passkey,
     required this.qrPayload,
     required this.localIp,
+    this.candidateIps = const [],
     required this.port,
     required this.expiresAt,
   });
@@ -99,26 +101,107 @@ class DevicePairingService {
     await _saveDevices(list);
   }
 
-  /// Obtiene la dirección IP local del dispositivo en la red Wi-Fi o Hotspot
+  /// Obtiene la dirección IP local del dispositivo en la red Wi-Fi o Hotspot,
+  /// descartando interfaces de datos móviles celulares (4G/LTE/5G)
+  /// que no son accesibles desde otros dispositivos de la red local.
   Future<String> getLocalIp() async {
+    final candidateIps = await getCandidateIps();
+    if (candidateIps.isNotEmpty) {
+      return candidateIps.first;
+    }
+    return '192.168.4.1'; // IP fallback típica de Hotspot móvil
+  }
+
+  /// Retorna todas las IPs locales válidas ordenadas por relevancia:
+  /// 1. Interfaces Wi-Fi reales (wlan, wifi, en, wl)
+  /// 2. Interfaces Hotspot / Punto de acceso (ap, softap, rndis)
+  /// 3. Subredes locales estándar (192.168.X.X, 172.16-31.X.X, 10.X.X.X no celulares)
+  /// Excluyendo explícitamente datos móviles celulares (rmnet, ccmni, pdp, wwan, dummy)
+  Future<List<String>> getCandidateIps() async {
+    final List<({String ip, String ifaceName, int score})> scoredList = [];
+
     try {
       final interfaces = await NetworkInterface.list(type: InternetAddressType.IPv4);
-      for (final interface in interfaces) {
-        for (final addr in interface.addresses) {
-          if (!addr.isLoopback && !addr.isLinkLocal) {
-            return addr.address;
+
+      for (final iface in interfaces) {
+        final name = iface.name.toLowerCase();
+
+        for (final addr in iface.addresses) {
+          if (addr.isLoopback || addr.isLinkLocal) continue;
+          final ip = addr.address;
+
+          int score = 0;
+
+          // Descartar interfaces de datos móviles celulares (ej. 4G de Claro, Movistar, Entel, etc.)
+          final isCellular = name.startsWith('rmnet') ||
+              name.startsWith('ccmni') ||
+              name.startsWith('pdp') ||
+              name.startsWith('wwan') ||
+              name.startsWith('v4-') ||
+              name.startsWith('dummy');
+
+          if (isCellular) {
+            score -= 100;
           }
+
+          // Descartar VPNs
+          if (name.startsWith('tun') || name.startsWith('tap') || name.startsWith('ppp')) {
+            score -= 100;
+          }
+
+          // Priorizar interfaces Wi-Fi conocidas
+          if (name.startsWith('wlan') || name.startsWith('wifi') || name.startsWith('wl') || name.startsWith('en')) {
+            score += 80;
+          }
+
+          // Priorizar Hotspot / Zona Wi-Fi portátil
+          if (name.startsWith('ap') || name.startsWith('softap') || name.startsWith('rndis')) {
+            score += 70;
+          }
+
+          // Priorizar subredes privadas estándar de routers y hotspots
+          if (ip.startsWith('192.168.')) {
+            score += 60;
+          } else if (ip.startsWith('172.')) {
+            final secondOctet = int.tryParse(ip.split('.')[1]) ?? 0;
+            if (secondOctet >= 16 && secondOctet <= 31) {
+              score += 40;
+            }
+          } else if (ip.startsWith('10.') && !isCellular) {
+            score += 30;
+          }
+
+          scoredList.add((ip: ip, ifaceName: name, score: score));
         }
       }
-    } catch (_) {}
-    return '192.168.4.1'; // IP fallback típica de Hotspot móvil
+
+      // Ordenar de mayor a menor puntuación
+      scoredList.sort((a, b) => b.score.compareTo(a.score));
+
+      // Filtrar sólo aquellas con score > 0 (sin celulares ni VPN)
+      final validIps = scoredList
+          .where((item) => item.score > 0)
+          .map((item) => item.ip)
+          .toSet()
+          .toList();
+
+      if (validIps.isNotEmpty) {
+        return validIps;
+      }
+
+      return scoredList.map((item) => item.ip).toSet().toList();
+    } catch (e) {
+      debugPrint('Error listando interfaces de red: $e');
+      return [];
+    }
   }
 
   /// Genera una sesión de emparejamiento con PIN de 6 dígitos y código QR dinámico
   Future<PairingSession> generatePairingSession() async {
     final license = await LicenseService().init();
     final config = await BusinessConfigRepository().getConfig();
-    final ip = await getLocalIp();
+    final candidateIps = await getCandidateIps();
+    final ip = candidateIps.isNotEmpty ? candidateIps.first : '192.168.4.1';
 
     // Generar PIN aleatorio de 6 dígitos
     final random = Random.secure();
@@ -130,6 +213,7 @@ class DevicePairingService {
       'business': config.businessName,
       'passkey': pin,
       'ip': ip,
+      'candidateIps': candidateIps,
       'port': defaultPort,
       'createdAt': DateTime.now().toIso8601String(),
     };
@@ -140,6 +224,7 @@ class DevicePairingService {
       passkey: pin,
       qrPayload: qrPayload,
       localIp: ip,
+      candidateIps: candidateIps,
       port: defaultPort,
       expiresAt: DateTime.now().add(const Duration(minutes: 15)),
     );
@@ -364,22 +449,33 @@ class DevicePairingService {
     return Response.notFound('Ruta de sincronización no encontrada');
   }
 
-  /// Conecta como cliente HTTP a la IP de la Caja Master en la red Wi-Fi y descarga la base de datos
+  /// Conecta como cliente HTTP a la IP de la Caja Master en la red Wi-Fi y descarga la base de datos.
+  /// Puede recibir una IP principal o una lista de IPs candidatas para probarlas automáticamente.
   Future<String?> fetchSnapshotFromMaster({
     required String ip,
+    List<String>? candidateIps,
     int port = defaultPort,
   }) async {
-    try {
-      final client = HttpClient();
-      client.connectionTimeout = const Duration(seconds: 4);
-      final request = await client.getUrl(Uri.parse('http://$ip:$port/sync'));
-      final response = await request.close().timeout(const Duration(seconds: 6));
-      if (response.statusCode == 200) {
-        final body = await response.transform(utf8.decoder).join();
-        return body;
+    final targets = <String>{ip};
+    if (candidateIps != null) {
+      targets.addAll(candidateIps);
+    }
+
+    for (final targetIp in targets) {
+      final cleanIp = targetIp.trim();
+      if (cleanIp.isEmpty) continue;
+      try {
+        final client = HttpClient();
+        client.connectionTimeout = const Duration(seconds: 3);
+        final request = await client.getUrl(Uri.parse('http://$cleanIp:$port/sync'));
+        final response = await request.close().timeout(const Duration(seconds: 5));
+        if (response.statusCode == 200) {
+          final body = await response.transform(utf8.decoder).join();
+          return body;
+        }
+      } catch (e) {
+        debugPrint('Intento de conexión fallido a $cleanIp:$port: $e');
       }
-    } catch (e) {
-      debugPrint('Error conectando a Master en $ip:$port: $e');
     }
     return null;
   }

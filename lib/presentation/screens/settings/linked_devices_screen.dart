@@ -157,7 +157,7 @@ class _LinkedDevicesScreenState extends State<LinkedDevicesScreen> {
               ),
               const SizedBox(height: 12),
               Text(
-                'IP Local: ${session.localIp}:${session.port} • Válido por 15 minutos',
+                'IP Local Wi-Fi: ${session.localIp}:${session.port} • Válido por 15 minutos',
                 style: const TextStyle(fontSize: 12, color: Colors.grey),
               ),
               const SizedBox(height: 20),
