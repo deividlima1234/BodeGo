@@ -156,9 +156,30 @@ class _LinkedDevicesScreenState extends State<LinkedDevicesScreen> {
                 ),
               ),
               const SizedBox(height: 12),
-              Text(
-                'IP Local Wi-Fi: ${session.localIp}:${session.port} • Válido por 15 minutos',
-                style: const TextStyle(fontSize: 12, color: Colors.grey),
+              InkWell(
+                onTap: () {
+                  Clipboard.setData(ClipboardData(text: session.localIp));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('IP ${session.localIp} copiada al portapapeles.')),
+                  );
+                },
+                borderRadius: BorderRadius.circular(8),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.wifi, size: 14, color: Colors.grey),
+                      const SizedBox(width: 6),
+                      Text(
+                        'IP Local Wi-Fi: ${session.localIp}:${session.port} • Válido por 15 min',
+                        style: const TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
+                      const SizedBox(width: 4),
+                      const Icon(Icons.copy_rounded, size: 12, color: Colors.grey),
+                    ],
+                  ),
+                ),
               ),
               const SizedBox(height: 20),
               SizedBox(

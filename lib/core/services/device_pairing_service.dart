@@ -398,7 +398,7 @@ class DevicePairingService {
         .addHandler(_handleHttpRequests);
 
     try {
-      _server = await shelf_io.serve(router, InternetAddress.anyIPv4, defaultPort);
+      _server = await shelf_io.serve(router, InternetAddress.anyIPv4, defaultPort, shared: true);
       isServerRunningNotifier.value = true;
       debugPrint('Servidor BodeGo Sync iniciado en puerto ${_server!.port}');
     } catch (e) {
@@ -416,7 +416,7 @@ class DevicePairingService {
     }
   }
 
-  Response _handleHttpRequests(Request request) {
+  Future<Response> _handleHttpRequests(Request request) async {
     final path = request.url.path;
 
     if (path == 'status') {
@@ -426,15 +426,22 @@ class DevicePairingService {
           'server': 'BodeGo Sync Server',
           'timestamp': DateTime.now().toIso8601String(),
         }),
-        headers: {'content-type': 'application/json'},
+        headers: {
+          'content-type': 'application/json',
+          'access-control-allow-origin': '*',
+        },
       );
     }
 
     if (path == 'sync') {
       // Endpoint que entrega el snapshot completo al móvil secundario
+      final snapshot = await exportDatabaseSnapshot();
       return Response.ok(
-        exportDatabaseSnapshot(),
-        headers: {'content-type': 'application/json'},
+        snapshot,
+        headers: {
+          'content-type': 'application/json; charset=utf-8',
+          'access-control-allow-origin': '*',
+        },
       );
     }
 
@@ -442,7 +449,10 @@ class DevicePairingService {
       // Validar passkey recibida del equipo secundario
       return Response.ok(
         jsonEncode({'paired': true, 'message': 'Dispositivo emparejado con éxito'}),
-        headers: {'content-type': 'application/json'},
+        headers: {
+          'content-type': 'application/json',
+          'access-control-allow-origin': '*',
+        },
       );
     }
 
@@ -462,19 +472,41 @@ class DevicePairingService {
     }
 
     for (final targetIp in targets) {
-      final cleanIp = targetIp.trim();
-      if (cleanIp.isEmpty) continue;
+      var rawTarget = targetIp.trim();
+      if (rawTarget.isEmpty) continue;
+
+      // Limpiar prefijo 'http://' o 'https://' si el usuario lo incluyó
+      if (rawTarget.startsWith('http://')) {
+        rawTarget = rawTarget.substring(7);
+      } else if (rawTarget.startsWith('https://')) {
+        rawTarget = rawTarget.substring(8);
+      }
+
+      int effectivePort = port;
+      String host = rawTarget;
+      if (rawTarget.contains(':')) {
+        final split = rawTarget.split(':');
+        host = split[0].trim();
+        effectivePort = int.tryParse(split[1].trim()) ?? port;
+      }
+
+      if (host.isEmpty) continue;
+
       try {
         final client = HttpClient();
-        client.connectionTimeout = const Duration(seconds: 3);
-        final request = await client.getUrl(Uri.parse('http://$cleanIp:$port/sync'));
-        final response = await request.close().timeout(const Duration(seconds: 5));
+        client.connectionTimeout = const Duration(seconds: 4);
+        final url = Uri.parse('http://$host:$effectivePort/sync');
+        debugPrint('Intentando conectar con Caja Master en: $url');
+        final request = await client.getUrl(url);
+        final response = await request.close().timeout(const Duration(seconds: 8));
         if (response.statusCode == 200) {
           final body = await response.transform(utf8.decoder).join();
           return body;
+        } else {
+          debugPrint('Respuesta no exitosa de la Caja Master: ${response.statusCode}');
         }
       } catch (e) {
-        debugPrint('Intento de conexión fallido a $cleanIp:$port: $e');
+        debugPrint('Intento de conexión fallido a $host:$effectivePort: $e');
       }
     }
     return null;

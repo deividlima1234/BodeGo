@@ -50,8 +50,9 @@ class _SecondaryDeviceOnboardingModalState
 
   // Controladores de texto para modo manual
   final TextEditingController _pinController = TextEditingController();
-  final TextEditingController _ipController = TextEditingController(text: '192.168.1.1');
+  final TextEditingController _ipController = TextEditingController();
   final TextEditingController _fallbackJsonController = TextEditingController();
+  String? _ipHint;
 
   bool _isSyncing = false;
   bool _syncSuccess = false;
@@ -74,7 +75,9 @@ class _SecondaryDeviceOnboardingModalState
       if (mounted && myIp.contains('.')) {
         final parts = myIp.split('.');
         if (parts.length == 4) {
-          _ipController.text = '${parts[0]}.${parts[1]}.${parts[2]}.1';
+          setState(() {
+            _ipHint = 'Ej: ${parts[0]}.${parts[1]}.${parts[2]}.xxx';
+          });
         }
       }
     } catch (_) {}
@@ -702,7 +705,8 @@ class _SecondaryDeviceOnboardingModalState
           keyboardType: TextInputType.datetime,
           decoration: InputDecoration(
             labelText: 'IP Local de la Caja Master',
-            hintText: 'Ej: 192.168.1.45 o 192.168.4.1',
+            hintText: _ipHint ?? 'Ej: 10.185.98.193',
+            helperText: 'Ingresa la IP exacta que se muestra en tu Caja Principal',
             prefixIcon: const Icon(Icons.wifi_rounded),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
           ),
@@ -726,8 +730,15 @@ class _SecondaryDeviceOnboardingModalState
                 );
                 return;
               }
+              final enteredIp = _ipController.text.trim();
+              if (enteredIp.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Ingresa la IP que se muestra en la Caja Principal (ej. 10.185.98.193).')),
+                );
+                return;
+              }
               setState(() {
-                _masterIp = _ipController.text.trim();
+                _masterIp = enteredIp;
                 _passkey = pin;
                 _currentStep = 2;
               });
@@ -953,6 +964,18 @@ class _SecondaryDeviceOnboardingModalState
             icon: const Icon(Icons.refresh_rounded),
             label: const Text('Reintentar conexión directa Wi-Fi'),
             onPressed: _startDirectSync,
+          ),
+        ),
+        Center(
+          child: TextButton.icon(
+            icon: const Icon(Icons.arrow_back_rounded),
+            label: const Text('Volver a escanear QR o editar IP'),
+            onPressed: () {
+              setState(() {
+                _currentStep = 1;
+                _syncErrorMessage = null;
+              });
+            },
           ),
         ),
       ],
