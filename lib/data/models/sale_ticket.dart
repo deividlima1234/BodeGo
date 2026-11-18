@@ -51,6 +51,8 @@ class SaleTicket {
   final String id;
   final String ticketNumber;
   final DateTime date;
+  final double subtotal;
+  final double discount;
   final double total;
   final bool isCredit;
   final int? customerId;
@@ -66,6 +68,8 @@ class SaleTicket {
     required this.id,
     required this.ticketNumber,
     required this.date,
+    double? subtotal,
+    this.discount = 0.0,
     required this.total,
     required this.isCredit,
     this.customerId,
@@ -76,12 +80,14 @@ class SaleTicket {
     required this.businessName,
     required this.items,
     this.isSynced = false,
-  });
+  }) : subtotal = subtotal ?? (total + discount);
 
   SaleTicket copyWith({
     String? id,
     String? ticketNumber,
     DateTime? date,
+    double? subtotal,
+    double? discount,
     double? total,
     bool? isCredit,
     int? customerId,
@@ -97,6 +103,8 @@ class SaleTicket {
       id: id ?? this.id,
       ticketNumber: ticketNumber ?? this.ticketNumber,
       date: date ?? this.date,
+      subtotal: subtotal ?? this.subtotal,
+      discount: discount ?? this.discount,
       total: total ?? this.total,
       isCredit: isCredit ?? this.isCredit,
       customerId: customerId ?? this.customerId,
@@ -114,6 +122,8 @@ class SaleTicket {
         'id': id,
         'ticketNumber': ticketNumber,
         'date': date.toIso8601String(),
+        'subtotal': subtotal,
+        'discount': discount,
         'total': total,
         'isCredit': isCredit,
         'customerId': customerId,
@@ -126,23 +136,31 @@ class SaleTicket {
         'isSynced': isSynced,
       };
 
-  factory SaleTicket.fromJson(Map<String, dynamic> json) => SaleTicket(
-        id: json['id'] as String,
-        ticketNumber: json['ticketNumber'] as String? ?? 'TKT-0000',
-        date: DateTime.tryParse(json['date'] as String? ?? '') ?? DateTime.now(),
-        total: (json['total'] as num?)?.toDouble() ?? 0.0,
-        isCredit: json['isCredit'] as bool? ?? false,
-        customerId: json['customerId'] as int?,
-        customerName: json['customerName'] as String?,
-        previousDebt: (json['previousDebt'] as num?)?.toDouble(),
-        newDebt: (json['newDebt'] as num?)?.toDouble(),
-        cashierName: json['cashierName'] as String? ?? 'Cajero de Turno',
-        businessName: json['businessName'] as String? ?? 'BodeGo',
-        isSynced: json['isSynced'] as bool? ?? true,
-        items: (json['items'] as List<dynamic>?)
-                ?.map((item) => SaleTicketItem.fromJson(item as Map<String, dynamic>))
-                .toList() ??
-            [],
-      );
+  factory SaleTicket.fromJson(Map<String, dynamic> json) {
+    final discount = (json['discount'] as num?)?.toDouble() ?? 0.0;
+    final total = (json['total'] as num?)?.toDouble() ?? 0.0;
+    final subtotal = (json['subtotal'] as num?)?.toDouble() ?? (total + discount);
+
+    return SaleTicket(
+      id: json['id'] as String,
+      ticketNumber: json['ticketNumber'] as String? ?? 'TKT-0000',
+      date: DateTime.tryParse(json['date'] as String? ?? '') ?? DateTime.now(),
+      subtotal: subtotal,
+      discount: discount,
+      total: total,
+      isCredit: json['isCredit'] as bool? ?? false,
+      customerId: json['customerId'] as int?,
+      customerName: json['customerName'] as String?,
+      previousDebt: (json['previousDebt'] as num?)?.toDouble(),
+      newDebt: (json['newDebt'] as num?)?.toDouble(),
+      cashierName: json['cashierName'] as String? ?? 'Cajero de Turno',
+      businessName: json['businessName'] as String? ?? 'BodeGo',
+      isSynced: json['isSynced'] as bool? ?? true,
+      items: (json['items'] as List<dynamic>?)
+              ?.map((item) => SaleTicketItem.fromJson(item as Map<String, dynamic>))
+              .toList() ??
+          [],
+    );
+  }
 }
 

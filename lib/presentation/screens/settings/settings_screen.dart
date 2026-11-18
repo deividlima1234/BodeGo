@@ -14,6 +14,7 @@ import 'package:bodego/presentation/screens/auth/pin_login_screen.dart';
 import 'package:bodego/presentation/screens/auth/splash_screen.dart';
 import 'package:bodego/presentation/screens/pos/widgets/ticket_preview_modal.dart';
 import 'package:bodego/presentation/screens/settings/widgets/printer_scanner_modal.dart';
+import 'package:bodego/presentation/screens/settings/widgets/inkjet_config_modal.dart';
 import 'package:bodego/presentation/screens/auth/widgets/legal_terms_modal.dart';
 import 'package:bodego/presentation/screens/settings/linked_devices_screen.dart';
 import 'package:bodego/core/services/app_version_service.dart';
@@ -201,12 +202,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Row(
+          content: Row(
             children: [
-              Icon(Icons.print_rounded, color: Colors.white, size: 20),
-              SizedBox(width: 10),
+              const Icon(Icons.print_rounded, color: Colors.white, size: 20),
+              const SizedBox(width: 10),
               Expanded(
-                child: Text('¡Ticket de prueba enviado a la impresora con éxito!'),
+                child: Text(_printerConfig.isInkjet
+                    ? '¡Enviando comprobante al servicio de impresión Android!'
+                    : '¡Ticket de prueba enviado a la impresora con éxito!'),
               ),
             ],
           ),
@@ -670,42 +673,164 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
 
             // ==========================================
-            // CATEGORÍA 2: IMPRESORA TÉRMICA Y DISPOSITIVOS
+            // CATEGORÍA 2: IMPRESORAS Y DISPOSITIVOS DE EMISIÓN
             // ==========================================
             _buildCollapsibleSection(
               id: 'printer',
-              title: 'Impresora Térmica y Dispositivos',
-              subtitle: 'Bluetooth, Red WiFi o USB para tickets',
+              title: 'Impresoras y Dispositivos de Emisión',
+              subtitle: 'Térmica POS o Inyección de Tinta (Epson, HP, Canon)',
               icon: Icons.print_rounded,
-              badgeText: _printerConfig.isConnected
-                  ? 'Activa (${_printerConfig.paperWidthMm}mm)'
-                  : 'Sin vincular',
+              badgeText: _printerConfig.isInkjet
+                  ? (_printerConfig.inkjetPaperFormat == 'half_a4_vertical'
+                      ? 'Tinta (Media Hoja A4)'
+                      : (_printerConfig.inkjetPaperFormat == 'full_a4' ? 'Tinta (A4)' : 'Tinta (80mm)'))
+                  : (_printerConfig.isConnected
+                      ? 'Térmica (${_printerConfig.paperWidthMm}mm)'
+                      : 'Sin vincular'),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Tarjeta de estado de la impresora actual
-                  if (_printerConfig.isConnected) ...[
+                  // Selector de Tecnología de Impresora
+                  const Text(
+                    'Tecnología de Impresión',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: InkWell(
+                          onTap: () {
+                            HapticFeedback.selectionClick();
+                            setState(() {
+                              _printerConfig = _printerConfig.copyWith(printerType: 'thermal');
+                            });
+                          },
+                          borderRadius: BorderRadius.circular(12),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+                            decoration: BoxDecoration(
+                              color: !_printerConfig.isInkjet
+                                  ? theme.colorScheme.primary.withOpacity(0.12)
+                                  : theme.scaffoldBackgroundColor,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: !_printerConfig.isInkjet
+                                    ? theme.colorScheme.primary
+                                    : Colors.grey.withOpacity(0.25),
+                                width: !_printerConfig.isInkjet ? 2 : 1,
+                              ),
+                            ),
+                            child: Column(
+                              children: [
+                                Icon(
+                                  Icons.receipt_long_rounded,
+                                  color: !_printerConfig.isInkjet ? theme.colorScheme.primary : Colors.grey,
+                                  size: 26,
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Térmica POS',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12,
+                                    color: !_printerConfig.isInkjet ? theme.colorScheme.primary : null,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  '58 / 80mm Bluetooth / Red',
+                                  style: TextStyle(fontSize: 9.5, color: Colors.grey[600]),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: InkWell(
+                          onTap: () {
+                            HapticFeedback.selectionClick();
+                            setState(() {
+                              _printerConfig = _printerConfig.copyWith(printerType: 'inkjet_system');
+                            });
+                          },
+                          borderRadius: BorderRadius.circular(12),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+                            decoration: BoxDecoration(
+                              color: _printerConfig.isInkjet
+                                  ? theme.colorScheme.primary.withOpacity(0.12)
+                                  : theme.scaffoldBackgroundColor,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: _printerConfig.isInkjet
+                                    ? theme.colorScheme.primary
+                                    : Colors.grey.withOpacity(0.25),
+                                width: _printerConfig.isInkjet ? 2 : 1,
+                              ),
+                            ),
+                            child: Column(
+                              children: [
+                                Icon(
+                                  Icons.print_rounded,
+                                  color: _printerConfig.isInkjet ? theme.colorScheme.primary : Colors.grey,
+                                  size: 26,
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Inyección de Tinta',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12,
+                                    color: _printerConfig.isInkjet ? theme.colorScheme.primary : null,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Epson, HP, Canon (A4/Tiras)',
+                                  style: TextStyle(fontSize: 9.5, color: Colors.grey[600]),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 14),
+
+                  // ==========================================
+                  // PANEL ESPECÍFICO SEGÚN MODO SELECCIONADO
+                  // ==========================================
+                  if (_printerConfig.isInkjet) ...[
+                    // Tarjeta de Estado de la Impresora de Tinta Activa
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: Colors.green.withOpacity(0.08),
+                        color: Colors.blue.withOpacity(0.08),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.green.withOpacity(0.35)),
+                        border: Border.all(color: Colors.blue.withOpacity(0.35)),
                       ),
                       child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Row(
                             children: [
                               Container(
                                 padding: const EdgeInsets.all(8),
                                 decoration: BoxDecoration(
-                                  color: Colors.green.withOpacity(0.15),
+                                  color: Colors.blue.withOpacity(0.15),
                                   shape: BoxShape.circle,
                                 ),
                                 child: Icon(
-                                  Icons.print_rounded,
-                                  color: Colors.green[800],
-                                  size: 22,
+                                  Icons.local_printshop_rounded,
+                                  color: Colors.blue[800],
+                                  size: 24,
                                 ),
                               ),
                               const SizedBox(width: 10),
@@ -713,31 +838,62 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(
-                                      _printerConfig.deviceName,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 13,
-                                      ),
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            _printerConfig.inkjetPrinterModel.isNotEmpty
+                                                ? _printerConfig.inkjetPrinterModel
+                                                : 'Epson EcoTank L7590',
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 13.5,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: Colors.green.withOpacity(0.15),
+                                            borderRadius: BorderRadius.circular(6),
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Container(
+                                                width: 6,
+                                                height: 6,
+                                                decoration: const BoxDecoration(
+                                                  color: Colors.green,
+                                                  shape: BoxShape.circle,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 4),
+                                              Text(
+                                                'Lista WiFi',
+                                                style: TextStyle(
+                                                  fontSize: 9.5,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Colors.green[800],
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                     const SizedBox(height: 2),
                                     Text(
-                                      '${_printerConfig.connectionType.toUpperCase()} • ${_printerConfig.deviceAddress}',
+                                      'Servicio Android Print / Mopria • Red WiFi',
                                       style: TextStyle(
-                                        fontFamily: 'monospace',
                                         fontSize: 10.5,
                                         color: Colors.grey[700],
                                       ),
                                     ),
                                   ],
                                 ),
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.link_off_rounded, color: Colors.redAccent, size: 20),
-                                tooltip: 'Desvincular impresora',
-                                onPressed: () async {
-                                  await _printerRepo.disconnectPrinter();
-                                },
                               ),
                             ],
                           ),
@@ -752,65 +908,366 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                   style: OutlinedButton.styleFrom(
                                     visualDensity: VisualDensity.compact,
                                     padding: const EdgeInsets.symmetric(vertical: 6),
+                                    side: BorderSide(color: Colors.blue[700]!),
                                   ),
                                 ),
                               ),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: ElevatedButton.icon(
-                                  onPressed: () => PrinterScannerModal.show(context),
-                                  icon: const Icon(Icons.sync_rounded, size: 14),
-                                  label: const Text('Cambiar Equipo', style: TextStyle(fontSize: 11)),
+                                  onPressed: () {
+                                    InkjetConfigModal.show(
+                                      context,
+                                      currentConfig: _printerConfig,
+                                      onConfigUpdated: (newConfig) {
+                                        setState(() => _printerConfig = newConfig);
+                                      },
+                                    );
+                                  },
+                                  icon: const Icon(Icons.settings_suggest_rounded, size: 14),
+                                  label: const Text('Configurar / Cambiar', style: TextStyle(fontSize: 11)),
                                   style: ElevatedButton.styleFrom(
                                     visualDensity: VisualDensity.compact,
                                     padding: const EdgeInsets.symmetric(vertical: 6),
+                                    backgroundColor: Colors.blue[800],
+                                    foregroundColor: Colors.white,
                                   ),
                                 ),
                               ),
                             ],
                           ),
-                        ],
-                      ),
-                    ),
-                  ] else ...[
-                    // Estado Desconectado / Sin Vincular
-                    Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: theme.scaffoldBackgroundColor,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.grey.withOpacity(0.25)),
-                      ),
-                      child: Column(
-                        children: [
-                          Icon(Icons.print_disabled_rounded, size: 36, color: Colors.grey[400]),
-                          const SizedBox(height: 8),
-                          const Text(
-                            'No hay impresora vinculada',
-                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                          ),
-                          const SizedBox(height: 3),
-                          Text(
-                            'Escanea y vincula tu ticketera Bluetooth, WiFi o USB para emitir comprobantes físicos.',
-                            style: TextStyle(fontSize: 11, color: Colors.grey[600]),
-                            textAlign: TextAlign.center,
-                          ),
                           const SizedBox(height: 12),
-                          SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton.icon(
-                              onPressed: () => PrinterScannerModal.show(context),
-                              icon: const Icon(Icons.radar_rounded, size: 18),
-                              label: const Text('Escanear y Conectar Impresora'),
-                              style: ElevatedButton.styleFrom(
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                padding: const EdgeInsets.symmetric(vertical: 11),
+                          const Divider(),
+                          const SizedBox(height: 6),
+                          const Text(
+                            'Formato y Corte de Papel:',
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                          ),
+                          const SizedBox(height: 8),
+
+                          // Opción 1: Media Hoja A4 Vertical (Recomendada por el usuario)
+                          InkWell(
+                            onTap: () {
+                              HapticFeedback.selectionClick();
+                              setState(() {
+                                _printerConfig = _printerConfig.copyWith(inkjetPaperFormat: 'half_a4_vertical');
+                              });
+                            },
+                            borderRadius: BorderRadius.circular(10),
+                            child: Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: _printerConfig.inkjetPaperFormat == 'half_a4_vertical'
+                                    ? Colors.blue.withOpacity(0.15)
+                                    : theme.scaffoldBackgroundColor,
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: _printerConfig.inkjetPaperFormat == 'half_a4_vertical'
+                                      ? Colors.blue
+                                      : Colors.grey.withOpacity(0.2),
+                                  width: _printerConfig.inkjetPaperFormat == 'half_a4_vertical' ? 1.5 : 1,
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Radio<String>(
+                                    value: 'half_a4_vertical',
+                                    groupValue: _printerConfig.inkjetPaperFormat,
+                                    activeColor: Colors.blue[800],
+                                    onChanged: (val) {
+                                      setState(() {
+                                        _printerConfig = _printerConfig.copyWith(inkjetPaperFormat: val);
+                                      });
+                                    },
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Wrap(
+                                          crossAxisAlignment: WrapCrossAlignment.center,
+                                          spacing: 6,
+                                          runSpacing: 2,
+                                          children: [
+                                            const Text(
+                                              'Media Hoja A4 (105 x 297 mm)',
+                                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                                            ),
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                                              decoration: BoxDecoration(
+                                                color: Colors.green[700],
+                                                borderRadius: BorderRadius.circular(4),
+                                              ),
+                                              child: const Text(
+                                                'RECOMENDADO',
+                                                style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          'Corta la hoja A4 por la mitad verticalmente. Entra perfecto en la bandeja Epson sin atascos y solo cortas la línea punteada ✂ al final del ticket.',
+                                          style: TextStyle(fontSize: 10.5, color: Colors.grey[700]),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+
+                          // Opción 2: Hoja A4 Completa
+                          InkWell(
+                            onTap: () {
+                              HapticFeedback.selectionClick();
+                              setState(() {
+                                _printerConfig = _printerConfig.copyWith(inkjetPaperFormat: 'full_a4');
+                              });
+                            },
+                            borderRadius: BorderRadius.circular(10),
+                            child: Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: _printerConfig.inkjetPaperFormat == 'full_a4'
+                                    ? Colors.blue.withOpacity(0.15)
+                                    : theme.scaffoldBackgroundColor,
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: _printerConfig.inkjetPaperFormat == 'full_a4'
+                                      ? Colors.blue
+                                      : Colors.grey.withOpacity(0.2),
+                                  width: _printerConfig.inkjetPaperFormat == 'full_a4' ? 1.5 : 1,
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Radio<String>(
+                                    value: 'full_a4',
+                                    groupValue: _printerConfig.inkjetPaperFormat,
+                                    activeColor: Colors.blue[800],
+                                    onChanged: (val) {
+                                      setState(() {
+                                        _printerConfig = _printerConfig.copyWith(inkjetPaperFormat: val);
+                                      });
+                                    },
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        const Text(
+                                          'Hoja A4 Completa (210 x 297 mm)',
+                                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          'Imprime en columna izquierda de una hoja A4 estándar, con líneas punteadas para recortar con tijera.',
+                                          style: TextStyle(fontSize: 10.5, color: Colors.grey[700]),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+
+                          // Opción 3: Tira Estrecha 80mm
+                          InkWell(
+                            onTap: () {
+                              HapticFeedback.selectionClick();
+                              setState(() {
+                                _printerConfig = _printerConfig.copyWith(inkjetPaperFormat: 'strip_80mm');
+                              });
+                            },
+                            borderRadius: BorderRadius.circular(10),
+                            child: Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: _printerConfig.inkjetPaperFormat == 'strip_80mm'
+                                    ? Colors.blue.withOpacity(0.15)
+                                    : theme.scaffoldBackgroundColor,
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: _printerConfig.inkjetPaperFormat == 'strip_80mm'
+                                      ? Colors.blue
+                                      : Colors.grey.withOpacity(0.2),
+                                  width: _printerConfig.inkjetPaperFormat == 'strip_80mm' ? 1.5 : 1,
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Radio<String>(
+                                    value: 'strip_80mm',
+                                    groupValue: _printerConfig.inkjetPaperFormat,
+                                    activeColor: Colors.blue[800],
+                                    onChanged: (val) {
+                                      setState(() {
+                                        _printerConfig = _printerConfig.copyWith(inkjetPaperFormat: val);
+                                      });
+                                    },
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        const Text(
+                                          'Tira de Papel Continuo (80 mm)',
+                                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          'Para tiras de 80 mm pre-cortadas ajustadas al tope de la bandeja.',
+                                          style: TextStyle(fontSize: 10.5, color: Colors.grey[700]),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ),
                         ],
                       ),
                     ),
+                  ] else ...[
+                    // Configuración Térmica POS
+                    if (_printerConfig.isConnected) ...[
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.green.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.green.withOpacity(0.35)),
+                        ),
+                        child: Column(
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: Colors.green.withOpacity(0.15),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Icon(
+                                    Icons.receipt_long_rounded,
+                                    color: Colors.green[800],
+                                    size: 22,
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        _printerConfig.deviceName,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        '${_printerConfig.connectionType.toUpperCase()} • ${_printerConfig.deviceAddress}',
+                                        style: TextStyle(
+                                          fontFamily: 'monospace',
+                                          fontSize: 10.5,
+                                          color: Colors.grey[700],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.link_off_rounded, color: Colors.redAccent, size: 20),
+                                  tooltip: 'Desvincular impresora',
+                                  onPressed: () async {
+                                    await _printerRepo.disconnectPrinter();
+                                  },
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: OutlinedButton.icon(
+                                    onPressed: _handleTestPrint,
+                                    icon: const Icon(Icons.print_rounded, size: 14),
+                                    label: const Text('Probar Impresión', style: TextStyle(fontSize: 11)),
+                                    style: OutlinedButton.styleFrom(
+                                      visualDensity: VisualDensity.compact,
+                                      padding: const EdgeInsets.symmetric(vertical: 6),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: ElevatedButton.icon(
+                                    onPressed: () => PrinterScannerModal.show(context),
+                                    icon: const Icon(Icons.sync_rounded, size: 14),
+                                    label: const Text('Cambiar Equipo', style: TextStyle(fontSize: 11)),
+                                    style: ElevatedButton.styleFrom(
+                                      visualDensity: VisualDensity.compact,
+                                      padding: const EdgeInsets.symmetric(vertical: 6),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ] else ...[
+                      // Estado Desconectado / Sin Vincular
+                      Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: theme.scaffoldBackgroundColor,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.grey.withOpacity(0.25)),
+                        ),
+                        child: Column(
+                          children: [
+                            Icon(Icons.print_disabled_rounded, size: 36, color: Colors.grey[400]),
+                            const SizedBox(height: 8),
+                            const Text(
+                              'No hay impresora térmica vinculada',
+                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              'Escanea y vincula tu ticketera Bluetooth, WiFi o USB para emitir comprobantes físicos.',
+                              style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 12),
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton.icon(
+                                onPressed: () => PrinterScannerModal.show(context),
+                                icon: const Icon(Icons.radar_rounded, size: 18),
+                                label: const Text('Escanear y Conectar Impresora'),
+                                style: ElevatedButton.styleFrom(
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                  padding: const EdgeInsets.symmetric(vertical: 11),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ],
 
                   const SizedBox(height: 14),

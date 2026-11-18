@@ -471,6 +471,62 @@ class ThermalReceiptWidget extends StatelessWidget {
                 const SizedBox(height: 8),
 
                 // ==========================================
+                // SUBTOTAL Y DESCUENTO (SI APLICA)
+                // ==========================================
+                if (ticket.discount > 0) ...[
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'SUBTOTAL:',
+                        style: TextStyle(
+                          fontFamily: 'monospace',
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: mutedTextColor,
+                        ),
+                      ),
+                      Text(
+                        'S/ ${ticket.subtotal.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          fontFamily: 'monospace',
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: textColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 3),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'DESCUENTO:',
+                        style: TextStyle(
+                          fontFamily: 'monospace',
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF2E7D32),
+                        ),
+                      ),
+                      Text(
+                        '- S/ ${ticket.discount.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          fontFamily: 'monospace',
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF2E7D32),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  const DashedDivider(),
+                  const SizedBox(height: 6),
+                ],
+
+                // ==========================================
                 // TOTAL GENERAL
                 // ==========================================
                 Row(

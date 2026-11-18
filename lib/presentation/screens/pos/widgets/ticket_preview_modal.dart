@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:bodego/data/models/business_config.dart';
 import 'package:bodego/data/models/sale_ticket.dart';
 import 'package:bodego/presentation/widgets/thermal_receipt_widget.dart';
+import 'package:bodego/presentation/screens/pos/widgets/thermal_print_progress_modal.dart';
 
 /// Modal interactivo que muestra el comprobante físico con bordes dentados
 /// tras realizar una venta o desde el historial, con opciones de Imprimir y Compartir.
@@ -33,25 +34,7 @@ class TicketPreviewModal extends StatelessWidget {
   }
 
   void _handlePrint(BuildContext context) {
-    HapticFeedback.mediumImpact();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            const Icon(Icons.print_rounded, color: Colors.white, size: 20),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                'Enviando ${ticket.ticketNumber} a la impresora térmica...',
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-            ),
-          ],
-        ),
-        backgroundColor: Colors.green[800],
-        duration: const Duration(seconds: 2),
-      ),
-    );
+    ThermalPrintProgressModal.show(context, ticket: ticket);
   }
 
   void _handleCopyShare(BuildContext context) {
@@ -69,6 +52,11 @@ class TicketPreviewModal extends StatelessWidget {
       buffer.writeln('${item.formattedQuantity} x ${item.name} - S/ ${item.subtotal.toStringAsFixed(2)}');
     }
     buffer.writeln('--------------------------------');
+    if (ticket.discount > 0) {
+      buffer.writeln('Subtotal: S/ ${ticket.subtotal.toStringAsFixed(2)}');
+      buffer.writeln('Descuento: - S/ ${ticket.discount.toStringAsFixed(2)}');
+      buffer.writeln('--------------------------------');
+    }
     buffer.writeln('*TOTAL: S/ ${ticket.total.toStringAsFixed(2)}*');
     if (ticket.isCredit && ticket.newDebt != null) {
       buffer.writeln('Nuevo Saldo Deudor: S/ ${ticket.newDebt!.toStringAsFixed(2)}');

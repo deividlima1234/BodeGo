@@ -1,16 +1,15 @@
 {
-  "latest_version": "1.0.4",
-  "build_number": 5,
-  "download_url": "https://github.com/deividlima1234/BodeGo/releases/download/v1.0.4/bodego-v1.0.4.apk",
+  "latest_version": "1.0.5",
+  "build_number": 6,
+  "download_url": "https://github.com/deividlima1234/BodeGo/releases/download/v1.0.5/bodego-v1.0.5.apk",
   "release_notes": [
-    "Persistencia de Roles: Separación estricta entre Caja Principal (Master) y Terminal Secundaria.",
-    "Handshake bidireccional: La Caja Master ahora registra y visualiza a los equipos secundarios automáticamente.",
-    "Seguridad en Terminales Secundarias: Protección contra desvinculación o alteraciones no autorizadas.",
-    "Sincronización Bidireccional Asistida: Nuevo asistente interactivo para transferir ventas y consolidar existencias.",
-    "Fusión Inteligente de Ventas y Stock: Integración de tickets emitidos en terminales secundarias sin duplicados ni pérdida de información.",
-    "Soporte completo de red local Wi-Fi con auto-reconexión por Código QR."
+    "Rediseño visual de tarjetas en Caja & Venta: Paletas cromáticas dinámicas e iconografía semántica por categoría de producto.",
+    "Descuentos en Ventas: Soporte para descuentos por monto fijo (S/) o porcentaje (%) con desglose transparente en carrito, comprobantes y WhatsApp.",
+    "Flujo animado de impresión: Nueva interfaz interactiva con animación física de salida de ticket, retroalimentación táctil y gestión de estados.",
+    "Soporte de Impresoras de Inyección de Tinta (Epson, HP, Canon): Emisión en Hoja A4 y Media Hoja Vertical (105x297mm) con guía punteada de corte.",
+    "Hardware Real de Impresión: Detección activa de Bluetooth (verificación de estado y activación guiada), Red WiFi (puerto 9100) y USB OTG con comandos ESC/POS."
   ],
   "is_mandatory": false,
   "min_supported_version": "1.0.0",
-  "published_at": "2026-11-15"
+  "published_at": "2026-11-17"
 }

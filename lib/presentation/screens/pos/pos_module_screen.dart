@@ -16,6 +16,8 @@ import 'package:bodego/data/repositories/user_repository.dart';
 import 'package:bodego/presentation/screens/pos/sales_history_screen.dart';
 import 'package:bodego/presentation/screens/pos/widgets/customer_picker_modal.dart';
 import 'package:bodego/presentation/screens/pos/widgets/ticket_preview_modal.dart';
+import 'package:bodego/presentation/screens/pos/widgets/pos_product_card.dart';
+import 'package:bodego/presentation/screens/pos/widgets/discount_dialog.dart';
 import 'package:bodego/presentation/widgets/modern_barcode_scanner.dart';
 import 'package:bodego/core/services/sound_service.dart';
 import 'package:bodego/core/services/device_pairing_service.dart';
@@ -41,6 +43,7 @@ class _PosModuleScreenState extends State<PosModuleScreen> {
   List<Category> _categories = [];
   int? _selectedCategoryId; // null = Todas las categorías
   final List<CartItem> _cart = [];
+  double _discount = 0.0;
   final TextEditingController _searchController = TextEditingController();
 
   StreamSubscription<void>? _productsSubscription;
@@ -414,8 +417,15 @@ class _PosModuleScreenState extends State<PosModuleScreen> {
     }
   }
 
-  /// Getter que calcula el total acumulado de todos los ítems en el carrito.
-  double get _cartTotal => _cart.fold(0.0, (sum, item) => sum + item.subtotal);
+  /// Getter que calcula el subtotal bruto acumulado de todos los ítems en el carrito.
+  double get _cartSubtotal => _cart.fold(0.0, (sum, item) => sum + item.subtotal);
+
+  /// Getter que calcula el total neto a cobrar aplicando el descuento activo.
+  double get _cartTotal {
+    final sub = _cartSubtotal;
+    final disc = _discount > sub ? sub : _discount;
+    return (sub - disc).clamp(0.0, double.infinity);
+  }
 
   // ==========================================
   // OPERACIONES DE COBRO (CONTADO VS FIADO) Y EMISIÓN DE TICKET
@@ -428,6 +438,8 @@ class _PosModuleScreenState extends State<PosModuleScreen> {
 
     Navigator.pop(modalContext);
 
+    final subtotal = _cartSubtotal;
+    final discount = _discount > subtotal ? subtotal : _discount;
     final total = _cartTotal;
 
     // 1. Descontar existencias en Isar
@@ -450,6 +462,8 @@ class _PosModuleScreenState extends State<PosModuleScreen> {
     // 3. Crear y persistir el ticket en el historial local
     final isSec = await DevicePairingService().isSecondaryDevice();
     final ticket = await _ticketRepository.createTicket(
+      subtotal: subtotal,
+      discount: discount,
       total: total,
       isCredit: false,
       cashierName: _cashierName,
@@ -460,14 +474,15 @@ class _PosModuleScreenState extends State<PosModuleScreen> {
 
     setState(() {
       _cart.clear();
+      _discount = 0.0;
       _selectedCustomer = null;
     });
     _reloadProductsSilently();
 
     // Impresión automática en ticketera si está vinculada y activa
     final printerConfig = await PrinterRepository().getConfig();
-    if (printerConfig.isConnected && printerConfig.autoPrintOnSale) {
-      PrinterRepository().printTestTicket(printerConfig);
+    if (printerConfig.isReadyToPrint && printerConfig.autoPrintOnSale) {
+      PrinterRepository().printSaleTicket(ticket, config: printerConfig);
     }
 
     if (!mounted) return;
@@ -528,6 +543,9 @@ class _PosModuleScreenState extends State<PosModuleScreen> {
 
     Navigator.pop(modalContext);
 
+    final subtotal = _cartSubtotal;
+    final discount = _discount > subtotal ? subtotal : _discount;
+
     // 1. Descontar existencias en Isar
     for (final item in _cart) {
       await _inventoryRepository.updateStock(item.product.id, item.quantity);
@@ -553,6 +571,8 @@ class _PosModuleScreenState extends State<PosModuleScreen> {
     // 4. Crear y persistir el ticket de fiado en el historial
     final isSec = await DevicePairingService().isSecondaryDevice();
     final ticket = await _ticketRepository.createTicket(
+      subtotal: subtotal,
+      discount: discount,
       total: total,
       isCredit: true,
       customerId: customer.id,
@@ -567,14 +587,15 @@ class _PosModuleScreenState extends State<PosModuleScreen> {
 
     setState(() {
       _cart.clear();
+      _discount = 0.0;
       _selectedCustomer = null;
     });
     _reloadProductsSilently();
 
     // Impresión automática en ticketera si está vinculada y activa
     final printerConfig = await PrinterRepository().getConfig();
-    if (printerConfig.isConnected && printerConfig.autoPrintOnSale) {
-      PrinterRepository().printTestTicket(printerConfig);
+    if (printerConfig.isReadyToPrint && printerConfig.autoPrintOnSale) {
+      PrinterRepository().printSaleTicket(ticket, config: printerConfig);
     }
 
     if (!mounted) return;
@@ -790,6 +811,171 @@ class _PosModuleScreenState extends State<PosModuleScreen> {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
+                          // 1. Desglose de Subtotal y Descuento
+                          if (_discount > 0) ...[
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text(
+                                  'Subtotal:',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                                Text(
+                                  'S/ ${_cartSubtotal.toStringAsFixed(2)}',
+                                  style: const TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: Colors.green.withOpacity(0.14),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: const Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(Icons.local_offer_rounded, size: 12, color: Colors.green),
+                                          SizedBox(width: 4),
+                                          Text(
+                                            'Descuento',
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.bold,
+                                              color: Colors.green,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    GestureDetector(
+                                      onTap: () async {
+                                        final newDisc = await DiscountDialog.show(
+                                          context,
+                                          currentSubtotal: _cartSubtotal,
+                                          initialDiscount: _discount,
+                                        );
+                                        if (newDisc != null) {
+                                          setModalState(() {
+                                            setState(() {
+                                              _discount = newDisc;
+                                            });
+                                          });
+                                        }
+                                      },
+                                      child: const Padding(
+                                        padding: EdgeInsets.all(4.0),
+                                        child: Icon(Icons.edit_outlined, size: 16, color: Colors.grey),
+                                      ),
+                                    ),
+                                    GestureDetector(
+                                      onTap: () {
+                                        setModalState(() {
+                                          setState(() {
+                                            _discount = 0.0;
+                                          });
+                                        });
+                                      },
+                                      child: const Padding(
+                                        padding: EdgeInsets.all(4.0),
+                                        child: Icon(Icons.close_rounded, size: 16, color: Colors.redAccent),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                Text(
+                                  '- S/ ${_discount.toStringAsFixed(2)}',
+                                  style: const TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.green,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            const Divider(height: 1),
+                            const SizedBox(height: 6),
+                          ] else ...[
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Row(
+                                  children: [
+                                    const Text(
+                                      'Subtotal:',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w500,
+                                        color: Colors.grey,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      'S/ ${_cartSubtotal.toStringAsFixed(2)}',
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                InkWell(
+                                  onTap: () async {
+                                    final newDisc = await DiscountDialog.show(
+                                      context,
+                                      currentSubtotal: _cartSubtotal,
+                                      initialDiscount: _discount,
+                                    );
+                                    if (newDisc != null && newDisc > 0) {
+                                      setModalState(() {
+                                        setState(() {
+                                          _discount = newDisc;
+                                        });
+                                      });
+                                    }
+                                  },
+                                  borderRadius: BorderRadius.circular(6),
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(Icons.local_offer_outlined, size: 14, color: Colors.green[700]),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          '+ Agregar Descuento',
+                                          style: TextStyle(
+                                            fontSize: 12.5,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.green[700],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                          ],
+
+                          // 2. Fila de Total Final a Cobrar / Fiar
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
@@ -1284,7 +1470,7 @@ class _PosModuleScreenState extends State<PosModuleScreen> {
                             crossAxisCount: 2,
                             crossAxisSpacing: 12,
                             mainAxisSpacing: 12,
-                            childAspectRatio: 0.95,
+                            childAspectRatio: 0.78,
                           ),
                           itemCount: _filteredProducts.length,
                           itemBuilder: (context, index) {
@@ -1303,137 +1489,13 @@ class _PosModuleScreenState extends State<PosModuleScreen> {
 
   /// Tarjeta de producto individual para el catálogo.
   Widget _buildProductCard(BuildContext context, Product product) {
-    final theme = Theme.of(context);
-    final bool isOutOfStock = product.stock <= 0;
-    final bool isLowStock = product.stock <= product.minStock;
-
-    // Cantidad actual de este producto en el carrito para feedback visual
     final cartIndex = _cart.indexWhere((item) => item.product.id == product.id);
     final double quantityInCart = cartIndex >= 0 ? _cart[cartIndex].quantity : 0.0;
 
-    return Material(
-      color: theme.colorScheme.surface,
-      borderRadius: BorderRadius.circular(16),
-      elevation: 1,
-      shadowColor: Colors.black.withOpacity(0.08),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: isOutOfStock ? null : () => _onProductCardTapped(product),
-        child: Padding(
-          padding: const EdgeInsets.all(12.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              // Fila superior: Indicador de stock y badge de cantidad en carrito
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: isOutOfStock
-                          ? Colors.grey.withOpacity(0.2)
-                          : isLowStock
-                              ? Colors.redAccent.withOpacity(0.15)
-                              : Colors.green.withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      isOutOfStock ? 'Agotado' : '${_formatStock(product.stock, product.unit)} disp.',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: isOutOfStock
-                            ? Colors.grey[700]
-                            : isLowStock
-                                ? Colors.redAccent
-                                : Colors.green[800],
-                      ),
-                    ),
-                  ),
-                  if (quantityInCart > 0)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.primary,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        _formatBadgeQuantity(quantityInCart, product.unit),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-
-              const SizedBox(height: 8),
-
-              // Nombre del producto
-              Expanded(
-                child: Text(
-                  product.name,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    height: 1.2,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-
-              const SizedBox(height: 8),
-
-              // Precio y botón de agregar
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text(
-                        'Precio',
-                        style: TextStyle(fontSize: 10, color: Colors.grey),
-                      ),
-                      Text(
-                        product.unit == 'und'
-                            ? 'S/ ${product.salePrice.toStringAsFixed(2)}'
-                            : 'S/ ${product.salePrice.toStringAsFixed(2)}/${product.unit}',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: theme.colorScheme.primary,
-                        ),
-                      ),
-                    ],
-                  ),
-                  Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: isOutOfStock
-                          ? Colors.grey.withOpacity(0.2)
-                          : theme.colorScheme.primary.withOpacity(0.12),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      product.allowsDecimals ? Icons.scale_rounded : Icons.add_shopping_cart_rounded,
-                      size: 18,
-                      color: isOutOfStock ? Colors.grey : theme.colorScheme.primary,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
+    return PosProductCard(
+      product: product,
+      quantityInCart: quantityInCart,
+      onTap: () => _onProductCardTapped(product),
     );
   }
 
@@ -1816,15 +1878,6 @@ class _PosModuleScreenState extends State<PosModuleScreen> {
       return '${clean.toInt()} $u';
     }
     return '${clean.toStringAsFixed(u == 'kg' ? 3 : 2)} $u';
-  }
-
-  String _formatBadgeQuantity(double qty, String unit) {
-    final clean = (qty.isNaN || qty.isInfinite) ? 0.0 : qty;
-    final u = unit.trim().isEmpty ? 'und' : unit.trim();
-    if (clean % 1 == 0) {
-      return '${clean.toInt()} $u';
-    }
-    return '${clean.toStringAsFixed(u == 'kg' ? 2 : 1)} $u';
   }
 
   /// Barra horizontal deslizable de categorías provenientes de la BD en tiempo real.

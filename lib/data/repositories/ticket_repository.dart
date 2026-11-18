@@ -56,6 +56,8 @@ class TicketRepository {
   /// Crea y persiste un nuevo ticket de venta con correlativo autoincremental.
   Future<SaleTicket> createTicket({
     required double total,
+    double? subtotal,
+    double discount = 0.0,
     required bool isCredit,
     int? customerId,
     String? customerName,
@@ -77,6 +79,8 @@ class TicketRepository {
       id: id,
       ticketNumber: formattedNumber,
       date: DateTime.now(),
+      subtotal: subtotal ?? (total + discount),
+      discount: discount,
       total: total,
       isCredit: isCredit,
       customerId: customerId,

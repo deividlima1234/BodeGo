@@ -386,6 +386,24 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
                             ),
                           ),
                         ),
+                        if (ticket.discount > 0) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                            decoration: BoxDecoration(
+                              color: Colors.green.withOpacity(0.14),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              '-S/ ${ticket.discount.toStringAsFixed(2)}',
+                              style: const TextStyle(
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.green,
+                              ),
+                            ),
+                          ),
+                        ],
                         const SizedBox(width: 8),
                         Text(
                           '${ticket.items.length} ${ticket.items.length == 1 ? 'producto' : 'productos'}',
