@@ -1,15 +1,14 @@
 {
-  "latest_version": "1.0.5",
-  "build_number": 6,
-  "download_url": "https://github.com/deividlima1234/BodeGo/releases/download/v1.0.5/bodego-v1.0.5.apk",
+  "latest_version": "1.0.6",
+  "build_number": 7,
+  "download_url": "https://github.com/deividlima1234/BodeGo/releases/download/v1.0.6/bodego-v1.0.6.apk",
   "release_notes": [
-    "Rediseño visual de tarjetas en Caja & Venta: Paletas cromáticas dinámicas e iconografía semántica por categoría de producto.",
-    "Descuentos en Ventas: Soporte para descuentos por monto fijo (S/) o porcentaje (%) con desglose transparente en carrito, comprobantes y WhatsApp.",
-    "Flujo animado de impresión: Nueva interfaz interactiva con animación física de salida de ticket, retroalimentación táctil y gestión de estados.",
-    "Soporte de Impresoras de Inyección de Tinta (Epson, HP, Canon): Emisión en Hoja A4 y Media Hoja Vertical (105x297mm) con guía punteada de corte.",
-    "Hardware Real de Impresión: Detección activa de Bluetooth (verificación de estado y activación guiada), Red WiFi (puerto 9100) y USB OTG con comandos ESC/POS."
+    "Navegación horizontal de categorías (Swipe): Deslizamiento suave entre categorías de productos y apertura fácil del menú lateral desde el borde.",
+    "Selector de logo desde Galería y Archivos: Selección y resguardo seguro de imagen comercial en el almacenamiento aislado de la aplicación.",
+    "Calibración tipográfica e imágenes en Wi-Fi IPP: Renderizado directo de alta definición a 300 DPI con tipografía e isotipos idénticos a Mopria.",
+    "Trazabilidad de impresión en tiempo real (RFC 8011): Animación sincronizada con la expulsión física de la hoja, consultas de estado (processing/completed) y detección inteligente de falta de papel con auto-reintento."
   ],
   "is_mandatory": false,
   "min_supported_version": "1.0.0",
-  "published_at": "2026-11-17"
+  "published_at": "2026-11-18"
 }

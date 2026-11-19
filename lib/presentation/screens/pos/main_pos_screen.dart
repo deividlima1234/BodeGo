@@ -214,6 +214,8 @@ class _MainPosScreenState extends State<MainPosScreen> {
     final Widget scaffoldContent = isMobile
         ? Scaffold(
             key: _scaffoldKey,
+            drawerEnableOpenDragGesture: true,
+            drawerEdgeDragWidth: 45.0,
             appBar: AppBar(
               leading: IconButton(
                 icon: const Icon(Icons.menu_rounded),

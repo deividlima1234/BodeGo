@@ -2,7 +2,10 @@
 class PrinterConfig {
   final String printerType; // 'thermal' (POS) o 'inkjet_system' (Epson, HP, Canon, etc.)
   final String inkjetPaperFormat; // 'half_a4_vertical' (105x297mm con corte final), 'full_a4' (210x297mm), 'strip_80mm'
-  final String inkjetPrinterModel; // Modelo seleccionado para tinta (ej: 'Epson EcoTank L7590')
+  final String inkjetPrinterModel; // Modelo seleccionado para tinta (ej: 'Canon MegaTank G3110', 'Epson EcoTank L7590')
+  final String inkjetMode; // 'direct_ipp' (0 ventanas) o 'android_spooler' (1 toque Android Print)
+  final String inkjetPrinterIp; // Dirección IP de la impresora de tinta (ej: '192.168.22.1')
+  final int inkjetPrinterPort; // Puerto de red: 631 (IPP estándar) o 9100 (RAW)
   final String deviceName;
   final String deviceAddress;
   final String connectionType; // 'bluetooth', 'wifi', 'usb'
@@ -16,7 +19,10 @@ class PrinterConfig {
   const PrinterConfig({
     this.printerType = 'thermal',
     this.inkjetPaperFormat = 'half_a4_vertical',
-    this.inkjetPrinterModel = 'Epson EcoTank L7590',
+    this.inkjetPrinterModel = 'Canon MegaTank G3110',
+    this.inkjetMode = 'direct_ipp',
+    this.inkjetPrinterIp = '192.168.22.1',
+    this.inkjetPrinterPort = 631,
     this.deviceName = 'Sin impresora vinculada',
     this.deviceAddress = '',
     this.connectionType = 'bluetooth',
@@ -30,12 +36,16 @@ class PrinterConfig {
 
   bool get isInkjet => printerType == 'inkjet_system';
   bool get isThermal => printerType == 'thermal';
+  bool get isDirectIpp => isInkjet && inkjetMode == 'direct_ipp';
   bool get isReadyToPrint => isInkjet || isConnected;
 
   PrinterConfig copyWith({
     String? printerType,
     String? inkjetPaperFormat,
     String? inkjetPrinterModel,
+    String? inkjetMode,
+    String? inkjetPrinterIp,
+    int? inkjetPrinterPort,
     String? deviceName,
     String? deviceAddress,
     String? connectionType,
@@ -50,6 +60,9 @@ class PrinterConfig {
       printerType: printerType ?? this.printerType,
       inkjetPaperFormat: inkjetPaperFormat ?? this.inkjetPaperFormat,
       inkjetPrinterModel: inkjetPrinterModel ?? this.inkjetPrinterModel,
+      inkjetMode: inkjetMode ?? this.inkjetMode,
+      inkjetPrinterIp: inkjetPrinterIp ?? this.inkjetPrinterIp,
+      inkjetPrinterPort: inkjetPrinterPort ?? this.inkjetPrinterPort,
       deviceName: deviceName ?? this.deviceName,
       deviceAddress: deviceAddress ?? this.deviceAddress,
       connectionType: connectionType ?? this.connectionType,
@@ -67,6 +80,9 @@ class PrinterConfig {
       'printerType': printerType,
       'inkjetPaperFormat': inkjetPaperFormat,
       'inkjetPrinterModel': inkjetPrinterModel,
+      'inkjetMode': inkjetMode,
+      'inkjetPrinterIp': inkjetPrinterIp,
+      'inkjetPrinterPort': inkjetPrinterPort,
       'deviceName': deviceName,
       'deviceAddress': deviceAddress,
       'connectionType': connectionType,
@@ -83,7 +99,10 @@ class PrinterConfig {
     return PrinterConfig(
       printerType: json['printerType'] as String? ?? 'thermal',
       inkjetPaperFormat: json['inkjetPaperFormat'] as String? ?? 'half_a4_vertical',
-      inkjetPrinterModel: json['inkjetPrinterModel'] as String? ?? 'Epson EcoTank L7590',
+      inkjetPrinterModel: json['inkjetPrinterModel'] as String? ?? 'Canon MegaTank G3110',
+      inkjetMode: json['inkjetMode'] as String? ?? 'direct_ipp',
+      inkjetPrinterIp: json['inkjetPrinterIp'] as String? ?? '192.168.22.1',
+      inkjetPrinterPort: json['inkjetPrinterPort'] as int? ?? 631,
       deviceName: json['deviceName'] as String? ?? 'Sin impresora vinculada',
       deviceAddress: json['deviceAddress'] as String? ?? '',
       connectionType: json['connectionType'] as String? ?? 'bluetooth',

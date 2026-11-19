@@ -103,6 +103,28 @@ class ThermalReceiptWidget extends StatelessWidget {
     this.customConfig,
   });
 
+  static String _formatRuc(String ruc) {
+    final trimmed = ruc.trim();
+    if (trimmed.isEmpty) return '';
+    String clean = trimmed;
+    final rucRegex = RegExp(r'^RUC\s*[:\.\-]?\s*', caseSensitive: false);
+    while (rucRegex.hasMatch(clean)) {
+      clean = clean.replaceFirst(rucRegex, '').trim();
+    }
+    return 'RUC: $clean';
+  }
+
+  static String _formatPhone(String phone) {
+    final trimmed = phone.trim();
+    if (trimmed.isEmpty) return '';
+    String clean = trimmed;
+    final phoneRegex = RegExp(r'^(Tel\s*/?\s*Cel|Tel|Cel)\s*[:\.\-]?\s*', caseSensitive: false);
+    while (phoneRegex.hasMatch(clean)) {
+      clean = clean.replaceFirst(phoneRegex, '').trim();
+    }
+    return 'Tel / Cel: $clean';
+  }
+
   String _formatDateTime(DateTime dt) {
     final day = dt.day.toString().padLeft(2, '0');
     final month = dt.month.toString().padLeft(2, '0');
@@ -187,10 +209,10 @@ class ThermalReceiptWidget extends StatelessWidget {
                       ),
 
                       // RUC
-                      if (config.showRucOnTicket && config.ruc.trim().isNotEmpty) ...[
+                      if (config.showRucOnTicket && _formatRuc(config.ruc).isNotEmpty) ...[
                         const SizedBox(height: 2),
                         Text(
-                          config.ruc.trim().toUpperCase(),
+                          _formatRuc(config.ruc),
                           style: const TextStyle(
                             fontFamily: 'monospace',
                             fontSize: 11,
@@ -219,10 +241,10 @@ class ThermalReceiptWidget extends StatelessWidget {
                       ],
 
                       // Teléfono / WhatsApp
-                      if (config.showPhoneOnTicket && config.phone.trim().isNotEmpty) ...[
+                      if (config.showPhoneOnTicket && _formatPhone(config.phone).isNotEmpty) ...[
                         const SizedBox(height: 2),
                         Text(
-                          config.phone.trim(),
+                          _formatPhone(config.phone),
                           style: const TextStyle(
                             fontFamily: 'monospace',
                             fontSize: 10,

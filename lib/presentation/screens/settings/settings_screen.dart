@@ -1,8 +1,9 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:bodego/core/theme/app_theme.dart';
-import 'package:bodego/data/local/isar/database_service.dart';
 import 'package:bodego/data/models/business_config.dart';
 import 'package:bodego/data/models/printer_config.dart';
 import 'package:bodego/data/models/sale_ticket.dart';
@@ -10,8 +11,6 @@ import 'package:bodego/data/repositories/app_settings_repository.dart';
 import 'package:bodego/data/repositories/business_config_repository.dart';
 import 'package:bodego/data/repositories/printer_repository.dart';
 import 'package:bodego/data/repositories/user_repository.dart';
-import 'package:bodego/presentation/screens/auth/pin_login_screen.dart';
-import 'package:bodego/presentation/screens/auth/splash_screen.dart';
 import 'package:bodego/presentation/screens/pos/widgets/ticket_preview_modal.dart';
 import 'package:bodego/presentation/screens/settings/widgets/printer_scanner_modal.dart';
 import 'package:bodego/presentation/screens/settings/widgets/inkjet_config_modal.dart';
@@ -285,6 +284,78 @@ class _SettingsScreenState extends State<SettingsScreen> {
     AppTheme.setTheme(theme);
   }
 
+  Future<void> _pickAndSaveCustomLogo(BuildContext modalContext, StateSetter setModalState) async {
+    try {
+      final picker = ImagePicker();
+      final XFile? pickedFile = await picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 600,
+        maxHeight: 600,
+        imageQuality: 92,
+      );
+
+      if (pickedFile == null) return;
+
+      final appDir = await getApplicationDocumentsDirectory();
+      final logosDir = Directory('${appDir.path}/business_logos');
+      if (!logosDir.existsSync()) {
+        logosDir.createSync(recursive: true);
+      }
+
+      // Eliminar el logo anterior si existía para mantener limpio el almacenamiento
+      if (_logoType == 'file' && _logoValue.isNotEmpty) {
+        final oldFile = File(_logoValue);
+        if (oldFile.existsSync()) {
+          try {
+            oldFile.deleteSync();
+          } catch (_) {}
+        }
+      }
+
+      final ext = pickedFile.name.contains('.') ? pickedFile.name.split('.').last.toLowerCase() : 'png';
+      final fileName = 'business_logo_${DateTime.now().millisecondsSinceEpoch}.$ext';
+      final destinationFile = File('${logosDir.path}/$fileName');
+
+      final savedFile = await File(pickedFile.path).copy(destinationFile.path);
+
+      setState(() {
+        _logoType = 'file';
+        _logoValue = savedFile.path;
+        _customLogoPathController.text = savedFile.path;
+      });
+
+      setModalState(() {});
+      if (modalContext.mounted) {
+        Navigator.pop(modalContext);
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.check_circle_outline_rounded, color: Colors.white, size: 20),
+                SizedBox(width: 8),
+                Text('Logo guardado de forma segura en la aplicación'),
+              ],
+            ),
+            backgroundColor: Color(0xFF1B5E20),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error al seleccionar imagen: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al seleccionar imagen: $e'),
+            backgroundColor: Colors.red[800],
+          ),
+        );
+      }
+    }
+  }
+
   void _showLogoPickerSheet() {
     showModalBottomSheet<void>(
       context: context,
@@ -399,51 +470,103 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
                   const SizedBox(height: 20),
                   const Divider(),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 12),
 
-                  // Opción de Ruta de Imagen Local
+                  // Opción de Logo Personalizado (Galería / Archivos)
                   Row(
                     children: [
-                      const Icon(Icons.photo_library_rounded, size: 20),
+                      Icon(Icons.photo_library_rounded, size: 20, color: theme.colorScheme.primary),
                       const SizedBox(width: 8),
                       const Text(
-                        'O usar ruta de foto / imagen local:',
+                        'O usar logo personalizado de tu negocio:',
                         style: TextStyle(
                             fontSize: 13, fontWeight: FontWeight.bold),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _customLogoPathController,
-                          decoration: InputDecoration(
-                            hintText: '/sdcard/Download/logo_bodega.png',
-                            labelText: 'Ruta del archivo de imagen',
-                            isDense: true,
-                            border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(10)),
+                  const SizedBox(height: 12),
+
+                  if (_logoType == 'file' && _logoValue.isNotEmpty && File(_logoValue).existsSync()) ...[
+                    // Previsualización y control de la imagen seleccionada
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primary.withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: theme.colorScheme.primary.withOpacity(0.3)),
+                      ),
+                      child: Row(
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: Image.file(
+                              File(_logoValue),
+                              width: 50,
+                              height: 50,
+                              fit: BoxFit.cover,
+                            ),
                           ),
-                        ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Foto personalizada activa',
+                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  File(_logoValue).path.split('/').last,
+                                  style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent),
+                            tooltip: 'Quitar foto y usar preset',
+                            onPressed: () {
+                              setState(() {
+                                _logoType = 'preset';
+                                _logoValue = 'storefront';
+                                _customLogoPathController.clear();
+                              });
+                              setModalState(() {});
+                            },
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 8),
-                      ElevatedButton(
-                        onPressed: () {
-                          final path = _customLogoPathController.text.trim();
-                          if (path.isNotEmpty) {
-                            setState(() {
-                              _logoType = 'file';
-                              _logoValue = path;
-                            });
-                            Navigator.pop(ctx);
-                          }
-                        },
-                        child: const Text('Aplicar'),
+                    ),
+                    const SizedBox(height: 10),
+                    OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
-                    ],
-                  ),
+                      onPressed: () => _pickAndSaveCustomLogo(ctx, setModalState),
+                      icon: const Icon(Icons.photo_camera_back_rounded, size: 20),
+                      label: const Text('Cambiar imagen desde Galería'),
+                    ),
+                  ] else ...[
+                    // Botón para elegir de galería o gestor de archivos
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: theme.colorScheme.primary,
+                        foregroundColor: theme.colorScheme.onPrimary,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      onPressed: () => _pickAndSaveCustomLogo(ctx, setModalState),
+                      icon: const Icon(Icons.photo_library_rounded, size: 20),
+                      label: const Text(
+                        'Elegir de Galería o Archivos',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             );
@@ -872,7 +995,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                               ),
                                               const SizedBox(width: 4),
                                               Text(
-                                                'Lista WiFi',
+                                                _printerConfig.isDirectIpp ? 'IPP Directo (0 Ventanas)' : 'Lista WiFi',
                                                 style: TextStyle(
                                                   fontSize: 9.5,
                                                   fontWeight: FontWeight.bold,
@@ -886,10 +1009,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                     ),
                                     const SizedBox(height: 2),
                                     Text(
-                                      'Servicio Android Print / Mopria • Red WiFi',
+                                      _printerConfig.isDirectIpp
+                                          ? 'Directo Wi-Fi IPP (${_printerConfig.inkjetPrinterIp}:${_printerConfig.inkjetPrinterPort})'
+                                          : 'Servicio Android Print / Mopria • Red WiFi',
                                       style: TextStyle(
                                         fontSize: 10.5,
-                                        color: Colors.grey[700],
+                                        color: _printerConfig.isDirectIpp ? Colors.blue[900] : Colors.grey[700],
+                                        fontWeight: _printerConfig.isDirectIpp ? FontWeight.w600 : FontWeight.normal,
                                       ),
                                     ),
                                   ],

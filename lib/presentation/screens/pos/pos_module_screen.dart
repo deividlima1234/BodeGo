@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:bodego/data/local/isar/collections/category.dart';
 import 'package:bodego/data/local/isar/collections/product.dart';
 import 'package:bodego/data/local/isar/collections/customer.dart';
@@ -39,9 +40,11 @@ class _PosModuleScreenState extends State<PosModuleScreen> {
   final UserRepository _userRepository = UserRepository();
 
   List<Product> _allProducts = [];
-  List<Product> _filteredProducts = [];
   List<Category> _categories = [];
   int? _selectedCategoryId; // null = Todas las categorías
+  int _currentPageIndex = 0; // Índice de la página activa en PageView (0 = Todos)
+  late final PageController _pageController;
+  final ScrollController _categoryScrollController = ScrollController();
   final List<CartItem> _cart = [];
   double _discount = 0.0;
   final TextEditingController _searchController = TextEditingController();
@@ -59,6 +62,7 @@ class _PosModuleScreenState extends State<PosModuleScreen> {
   @override
   void initState() {
     super.initState();
+    _pageController = PageController(initialPage: 0);
     _loadInitialData();
     _loadSessionData();
     _initRealtimeSubscriptions();
@@ -69,6 +73,8 @@ class _PosModuleScreenState extends State<PosModuleScreen> {
     _productsSubscription?.cancel();
     _categoriesSubscription?.cancel();
     _searchController.dispose();
+    _pageController.dispose();
+    _categoryScrollController.dispose();
     super.dispose();
   }
 
@@ -146,6 +152,10 @@ class _PosModuleScreenState extends State<PosModuleScreen> {
       if (_selectedCategoryId != null &&
           !_categories.any((c) => c.id == _selectedCategoryId)) {
         _selectedCategoryId = null;
+        _currentPageIndex = 0;
+        if (_pageController.hasClients) {
+          _pageController.jumpToPage(0);
+        }
       }
       setState(() {
         _applyFilters();
@@ -174,30 +184,9 @@ class _PosModuleScreenState extends State<PosModuleScreen> {
     }
   }
 
-  /// Aplica los filtros combinados de búsqueda textual y categoría activa.
+  /// Notifica a la interfaz para refrescar el catálogo filtrado por página y búsqueda.
   void _applyFilters() {
-    final cleanQuery = _searchController.text.trim().toLowerCase();
-
-    _filteredProducts = _allProducts.where((product) {
-      // 1. Filtro por categoría seleccionada
-      if (_selectedCategoryId != null) {
-        if (product.category.value?.id != _selectedCategoryId) {
-          return false;
-        }
-      }
-
-      // 2. Filtro por coincidencia de texto (nombre o código de barras)
-      if (cleanQuery.isNotEmpty) {
-        final matchesName = product.name.toLowerCase().contains(cleanQuery);
-        final matchesBarcode =
-            product.barcode?.toLowerCase().contains(cleanQuery) ?? false;
-        if (!matchesName && !matchesBarcode) {
-          return false;
-        }
-      }
-
-      return true;
-    }).toList();
+    // La reactividad se maneja dinámicamente por página en `_getProductsForPageIndex`
   }
 
   /// Evento al escribir en la barra de búsqueda.
@@ -207,12 +196,87 @@ class _PosModuleScreenState extends State<PosModuleScreen> {
     });
   }
 
-  /// Evento al seleccionar un filtro de categoría.
+  /// Evento al seleccionar un filtro de categoría desde los chips superiores.
   void _onCategorySelected(int? categoryId) {
+    final targetIndex = categoryId == null
+        ? 0
+        : (_categories.indexWhere((c) => c.id == categoryId) + 1);
+
+    if (targetIndex < 0 || targetIndex > _categories.length) return;
+
     setState(() {
       _selectedCategoryId = categoryId;
+      _currentPageIndex = targetIndex;
       _applyFilters();
     });
+
+    if (_pageController.hasClients && _pageController.page?.round() != targetIndex) {
+      _pageController.animateToPage(
+        targetIndex,
+        duration: const Duration(milliseconds: 280),
+        curve: Curves.easeInOutCubic,
+      );
+    }
+    _scrollCategoryChipIntoView(targetIndex);
+  }
+
+  /// Evento al deslizar horizontalmente la cuadrícula de productos (PageView).
+  void _onPageChanged(int index) {
+    if (index < 0 || index > _categories.length) return;
+    HapticFeedback.selectionClick();
+
+    final int? newCatId = index == 0 ? null : _categories[index - 1].id;
+
+    setState(() {
+      _currentPageIndex = index;
+      _selectedCategoryId = newCatId;
+      _applyFilters();
+    });
+
+    _scrollCategoryChipIntoView(index);
+  }
+
+  /// Desplaza la barra superior de chips para mantener siempre visible y centrada la categoría activa.
+  void _scrollCategoryChipIntoView(int index) {
+    if (!_categoryScrollController.hasClients) return;
+    const double chipEstimatedWidth = 105.0;
+    final double targetOffset = (index * chipEstimatedWidth) - 80.0;
+    _categoryScrollController.animateTo(
+      targetOffset.clamp(0.0, _categoryScrollController.position.maxScrollExtent),
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  /// Abre el sidebar (Drawer) de navegación principal
+  void _openSidebarDrawer() {
+    final scaffold = context.findRootAncestorStateOfType<ScaffoldState>() ??
+        context.findAncestorStateOfType<ScaffoldState>();
+    if (scaffold != null && !scaffold.isDrawerOpen) {
+      HapticFeedback.lightImpact();
+      scaffold.openDrawer();
+    }
+  }
+
+  /// Devuelve los productos filtrados para una página/categoría específica del PageView.
+  List<Product> _getProductsForPageIndex(int pageIndex) {
+    final int? categoryId = pageIndex == 0 ? null : _categories[pageIndex - 1].id;
+    final cleanQuery = _searchController.text.trim().toLowerCase();
+
+    return _allProducts.where((product) {
+      if (categoryId != null && product.category.value?.id != categoryId) {
+        return false;
+      }
+      if (cleanQuery.isNotEmpty) {
+        final matchesName = product.name.toLowerCase().contains(cleanQuery);
+        final matchesBarcode =
+            product.barcode?.toLowerCase().contains(cleanQuery) ?? false;
+        if (!matchesName && !matchesBarcode) {
+          return false;
+        }
+      }
+      return true;
+    }).toList();
   }
 
   /// Abre el escáner moderno e inteligente en modo continuo para la Caja.
@@ -1458,26 +1522,49 @@ class _PosModuleScreenState extends State<PosModuleScreen> {
             if (_categories.isNotEmpty)
               _buildCategoryFilterBar(theme),
 
-            // 3. Cuadrícula de productos a pantalla completa
+            // 3. Cuadrícula de productos con navegación gestual entre categorías (PageView)
             Expanded(
               child: _isLoading
                   ? const Center(child: CircularProgressIndicator())
-                  : _filteredProducts.isEmpty
-                      ? _buildEmptyCatalogState(context)
-                      : GridView.builder(
-                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 88),
-                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 2,
-                            crossAxisSpacing: 12,
-                            mainAxisSpacing: 12,
-                            childAspectRatio: 0.78,
-                          ),
-                          itemCount: _filteredProducts.length,
-                          itemBuilder: (context, index) {
-                            final product = _filteredProducts[index];
-                            return _buildProductCard(context, product);
-                          },
-                        ),
+                  : NotificationListener<ScrollNotification>(
+                      onNotification: (notification) {
+                        // Si estamos en la primera pestaña ("Todos") y el usuario desliza hacia la derecha (overscroll)
+                        if (_currentPageIndex == 0 && notification is OverscrollNotification) {
+                          if (notification.overscroll < -8) {
+                            _openSidebarDrawer();
+                          }
+                        }
+                        return false;
+                      },
+                      child: PageView.builder(
+                        controller: _pageController,
+                        physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+                        itemCount: _categories.length + 1,
+                        onPageChanged: _onPageChanged,
+                        itemBuilder: (context, pageIndex) {
+                          final pageProducts = _getProductsForPageIndex(pageIndex);
+                          if (pageProducts.isEmpty) {
+                            final int? catId = pageIndex == 0 ? null : _categories[pageIndex - 1].id;
+                            return _buildEmptyCatalogState(context, pageCategoryId: catId);
+                          }
+                          return GridView.builder(
+                            key: PageStorageKey('category_grid_$pageIndex'),
+                            padding: const EdgeInsets.fromLTRB(16, 8, 16, 88),
+                            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 2,
+                              crossAxisSpacing: 12,
+                              mainAxisSpacing: 12,
+                              childAspectRatio: 0.78,
+                            ),
+                            itemCount: pageProducts.length,
+                            itemBuilder: (context, index) {
+                              final product = pageProducts[index];
+                              return _buildProductCard(context, product);
+                            },
+                          );
+                        },
+                      ),
+                    ),
             ),
           ],
         ),
@@ -1888,6 +1975,7 @@ class _PosModuleScreenState extends State<PosModuleScreen> {
       height: 40,
       margin: const EdgeInsets.only(bottom: 8),
       child: ListView.separated(
+        controller: _categoryScrollController,
         padding: const EdgeInsets.symmetric(horizontal: 16),
         scrollDirection: Axis.horizontal,
         itemCount: _categories.length + 1,
@@ -2010,10 +2098,11 @@ class _PosModuleScreenState extends State<PosModuleScreen> {
   }
 
   /// Estado vacío si no hay productos en el catálogo o no hay coincidencias con los filtros.
-  Widget _buildEmptyCatalogState(BuildContext context) {
+  Widget _buildEmptyCatalogState(BuildContext context, {int? pageCategoryId}) {
     final theme = Theme.of(context);
-    final hasActiveFilters =
-        _searchController.text.trim().isNotEmpty || _selectedCategoryId != null;
+    final isCategoryFiltered = pageCategoryId != null || _selectedCategoryId != null;
+    final hasSearch = _searchController.text.trim().isNotEmpty;
+    final hasActiveFilters = hasSearch || isCategoryFiltered;
 
     if (_allProducts.isEmpty) {
       // Caso 1: La base de datos no tiene ningún producto registrado aún
@@ -2078,9 +2167,9 @@ class _PosModuleScreenState extends State<PosModuleScreen> {
             ),
             const SizedBox(height: 6),
             Text(
-              _selectedCategoryId != null && _searchController.text.trim().isNotEmpty
+              isCategoryFiltered && hasSearch
                   ? 'No hay productos que coincidan con la búsqueda en esta categoría.'
-                  : _selectedCategoryId != null
+                  : isCategoryFiltered
                       ? 'No hay productos registrados en la categoría seleccionada.'
                       : 'No se encontraron productos que coincidan con la búsqueda.',
               textAlign: TextAlign.center,
@@ -2095,10 +2184,7 @@ class _PosModuleScreenState extends State<PosModuleScreen> {
                 ),
                 onPressed: () {
                   _searchController.clear();
-                  _selectedCategoryId = null;
-                  setState(() {
-                    _applyFilters();
-                  });
+                  _onCategorySelected(null);
                 },
                 icon: const Icon(Icons.clear_all_rounded, size: 18),
                 label: const Text('Limpiar filtros'),

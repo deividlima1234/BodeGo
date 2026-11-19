@@ -8,6 +8,7 @@ import 'package:bodego/presentation/screens/settings/widgets/printer_scanner_mod
 enum PrintProcessState {
   connecting,
   printing,
+  paperEmpty,
   success,
   error,
   noPrinter,
@@ -53,8 +54,10 @@ class _ThermalPrintProgressModalState extends State<ThermalPrintProgressModal>
 
   PrintProcessState _state = PrintProcessState.connecting;
   PrinterConfig? _printerConfig;
-  String _statusMessage = 'Verificando impresora térmica...';
+  String _statusMessage = 'Preparando impresión...';
+  String? _customSubtitle;
   double _printProgress = 0.0;
+  int _lastHapticTick = 0;
 
   late final AnimationController _pulseController;
   late final AnimationController _paperController;
@@ -83,7 +86,9 @@ class _ThermalPrintProgressModalState extends State<ThermalPrintProgressModal>
       setState(() {
         _printProgress = _paperController.value;
       });
-      if ((_paperController.value * 10) % 2 == 0) {
+      final currentTick = (_paperController.value * 10).floor();
+      if (currentTick != _lastHapticTick && currentTick > 0 && currentTick < 10) {
+        _lastHapticTick = currentTick;
         HapticFeedback.selectionClick();
       }
     });
@@ -99,96 +104,106 @@ class _ThermalPrintProgressModalState extends State<ThermalPrintProgressModal>
     super.dispose();
   }
 
-  /// Inicia el flujo secuencial de conexión e impresión
+  /// Inicia el flujo secuencial de conexión e impresión con telemetría en tiempo real
   Future<void> _startPrintingFlow({bool forceSimulation = false}) async {
     setState(() {
       _state = PrintProcessState.connecting;
       _statusMessage = 'Preparando impresión...';
+      _customSubtitle = null;
       _printProgress = 0.0;
     });
     _paperController.reset();
+    _lastHapticTick = 0;
 
     final config = await _printerRepo.getConfig();
     _printerConfig = config;
 
-    // Si es térmica y no hay impresora configurada ni es modo simulación
-    if (!config.isInkjet && !config.isConnected && !forceSimulation) {
-      if (!mounted) return;
-      setState(() {
-        _state = PrintProcessState.noPrinter;
-        _statusMessage = 'No hay impresora vinculada';
-      });
-      return;
-    }
-
-    if (config.isInkjet) {
-      // Flujo de Inyección de Tinta (Epson L7590 / A4 / Media Hoja)
-      setState(() {
-        _state = PrintProcessState.connecting;
-        _statusMessage = 'Generando comprobante para tinta...';
-      });
-
-      await Future.delayed(const Duration(milliseconds: 500));
-      if (!mounted) return;
+    // Modo simulación manual o cuando no hay impresora configurada
+    if (forceSimulation || (!config.isInkjet && !config.isConnected)) {
+      if (!forceSimulation && !config.isConnected) {
+        if (!mounted) return;
+        setState(() {
+          _state = PrintProcessState.noPrinter;
+          _statusMessage = 'No hay impresora vinculada';
+        });
+        return;
+      }
 
       setState(() {
         _state = PrintProcessState.printing;
-        _statusMessage = 'Abriendo servicio de impresión...';
+        _statusMessage = 'Simulando impresión de comprobante...';
+        _customSubtitle = 'Modo de prueba virtual';
       });
 
-      HapticFeedback.mediumImpact();
-      _paperController.forward();
-
-      // Despacha al PrintManager nativo de Android
-      final success = await _printerRepo.printSaleTicket(widget.ticket, config: config);
-
-      await Future.delayed(const Duration(milliseconds: 1600));
-      if (!mounted) return;
-
-      if (success) {
-        HapticFeedback.heavyImpact();
-        _successController.forward(from: 0.0);
+      final sw = Stopwatch()..start();
+      const simMs = 3000;
+      while (sw.elapsedMilliseconds < simMs) {
+        if (!mounted) return;
+        final prog = (sw.elapsedMilliseconds / simMs).clamp(0.0, 0.98);
         setState(() {
-          _state = PrintProcessState.success;
-          _statusMessage = '¡Comprobante enviado a la impresora!';
+          _printProgress = prog;
+          _paperController.value = prog;
+          _statusMessage = 'Simulando impresión (${(prog * 100).toInt()}%)...';
         });
-        widget.onCompleted?.call();
-      } else {
-        setState(() {
-          _state = PrintProcessState.error;
-          _statusMessage = 'No se pudo abrir el servicio de impresión';
-        });
+        await Future.delayed(const Duration(milliseconds: 100));
       }
+
+      if (!mounted) return;
+      HapticFeedback.heavyImpact();
+      _successController.forward(from: 0.0);
+      setState(() {
+        _state = PrintProcessState.success;
+        _statusMessage = '¡Comprobante simulado con éxito!';
+        _printProgress = 1.0;
+        _paperController.value = 1.0;
+      });
+      widget.onCompleted?.call();
       return;
     }
 
-    // Fase 1: Conexión (700 ms)
-    await Future.delayed(const Duration(milliseconds: 700));
+    // Despacha la impresión con trazabilidad de progreso y estado en tiempo real
+    final printResult = await _printerRepo.printSaleTicketDetailed(
+      widget.ticket,
+      config: config,
+      onProgress: (event) {
+        if (!mounted) return;
+        setState(() {
+          _printProgress = event.progress;
+          _paperController.value = event.progress;
+          _statusMessage = event.title;
+          _customSubtitle = event.subtitle;
+
+          if (event.isPaperEmpty) {
+            _state = PrintProcessState.paperEmpty;
+          } else if (event.hasError) {
+            _state = PrintProcessState.error;
+          } else if (event.isCompleted) {
+            _state = PrintProcessState.success;
+          } else {
+            _state = PrintProcessState.printing;
+          }
+        });
+      },
+    );
+
     if (!mounted) return;
 
-    // Fase 2: Impresión en vivo
-    setState(() {
-      _state = PrintProcessState.printing;
-      _statusMessage = 'Imprimiendo ${widget.ticket.ticketNumber}...';
-    });
-
-    HapticFeedback.mediumImpact();
-    _paperController.forward();
-
-    // Esperamos a que la animación de expulsión de papel concluya
-    await Future.delayed(const Duration(milliseconds: 2000));
-    if (!mounted) return;
-
-    // Fase 3: Éxito
-    HapticFeedback.heavyImpact();
-    _successController.forward(from: 0.0);
-
-    setState(() {
-      _state = PrintProcessState.success;
-      _statusMessage = '¡Comprobante impreso con éxito!';
-    });
-
-    widget.onCompleted?.call();
+    if (printResult.success) {
+      HapticFeedback.heavyImpact();
+      _successController.forward(from: 0.0);
+      setState(() {
+        _state = PrintProcessState.success;
+        _statusMessage = printResult.message;
+        _printProgress = 1.0;
+        _paperController.value = 1.0;
+      });
+      widget.onCompleted?.call();
+    } else {
+      setState(() {
+        _state = PrintProcessState.error;
+        _statusMessage = printResult.message;
+      });
+    }
   }
 
   @override
@@ -318,6 +333,10 @@ class _ThermalPrintProgressModalState extends State<ThermalPrintProgressModal>
 
   /// Retorna el subtítulo contextual de la impresora activa
   String _getDeviceSubtitle() {
+    if (_customSubtitle != null && _customSubtitle!.isNotEmpty) {
+      return _customSubtitle!;
+    }
+
     final isInkjet = _printerConfig?.isInkjet ?? false;
     final formatLabel = _printerConfig?.inkjetPaperFormat == 'half_a4_vertical'
         ? 'Media Hoja A4 (105mm)'
@@ -340,6 +359,8 @@ class _ThermalPrintProgressModalState extends State<ThermalPrintProgressModal>
         final name = _printerConfig?.deviceName ?? 'POS-5802DD';
         final pct = (_printProgress * 100).toInt();
         return 'Enviando a $name ($pct%)...';
+      case PrintProcessState.paperEmpty:
+        return 'Coloca papel en la bandeja de la impresora para continuar';
       case PrintProcessState.success:
         if (isInkjet) {
           final model = _printerConfig?.inkjetPrinterModel.isNotEmpty == true
@@ -386,6 +407,23 @@ class _ThermalPrintProgressModalState extends State<ThermalPrintProgressModal>
             color: Colors.green,
             size: 56,
           ),
+        ),
+      );
+    }
+
+    if (_state == PrintProcessState.paperEmpty) {
+      return Container(
+        width: 90,
+        height: 90,
+        decoration: BoxDecoration(
+          color: Colors.amber.withOpacity(0.12),
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.amber.withOpacity(0.4), width: 2),
+        ),
+        child: const Icon(
+          Icons.note_alt_outlined,
+          color: Colors.amber,
+          size: 46,
         ),
       );
     }
@@ -578,7 +616,9 @@ class _ThermalPrintProgressModalState extends State<ThermalPrintProgressModal>
                       ),
                       const SizedBox(width: 8),
                       Text(
-                        _printerConfig?.isInkjet == true ? 'EPSON/A4' : 'POWER',
+                        _printerConfig?.isInkjet == true
+                            ? (_printerConfig?.inkjetPrinterModel.split(' ').first.toUpperCase() ?? 'TINTA')
+                            : 'POWER',
                         style: const TextStyle(
                           color: Colors.white60,
                           fontSize: 8,
@@ -671,6 +711,31 @@ class _ThermalPrintProgressModalState extends State<ThermalPrintProgressModal>
             child: const Text(
               'Probar en Modo Simulación',
               style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      );
+    }
+
+    if (_state == PrintProcessState.paperEmpty) {
+      return Row(
+        children: [
+          Expanded(
+            child: OutlinedButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancelar'),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.amber[700],
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () => _startPrintingFlow(),
+              icon: const Icon(Icons.refresh_rounded, size: 16),
+              label: const Text('Reintentar', style: TextStyle(fontWeight: FontWeight.bold)),
             ),
           ),
         ],
