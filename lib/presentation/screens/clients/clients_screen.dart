@@ -1,6 +1,9 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:bodego/data/local/isar/collections/customer.dart';
 import 'package:bodego/data/repositories/customer_repository.dart';
+import 'package:bodego/core/services/sync_queue_service.dart';
+import 'package:bodego/core/services/google_sheets_sync_service.dart';
 
 /// Pantalla del Módulo de Clientes y Cuentas por Cobrar ("Fiados").
 class ClientsScreen extends StatefulWidget {
@@ -168,6 +171,7 @@ class _ClientsScreenState extends State<ClientsScreen> {
                       addressController.text.trim(),
                       limit,
                     );
+                    GoogleSheetsSyncService().triggerAutoBackupIfEnabled();
 
                     if (mounted) {
                       Navigator.pop(ctx);
@@ -229,6 +233,11 @@ class _ClientsScreenState extends State<ClientsScreen> {
               final amount = double.tryParse(amountController.text.trim());
               if (amount != null && amount > 0) {
                 await _customerRepository.payDebt(customer.id, amount);
+                unawaited(SyncQueueService().enqueueDebtPayment(
+                  customerId: customer.id,
+                  customerName: customer.name,
+                  amount: amount,
+                ));
                 if (mounted) {
                   Navigator.pop(ctx);
                   _loadCustomers();

@@ -1,14 +1,14 @@
 {
-  "latest_version": "1.0.6",
-  "build_number": 7,
-  "download_url": "https://github.com/deividlima1234/BodeGo/releases/download/v1.0.6/bodego-v1.0.6.apk",
+  "latest_version": "2.0.0",
+  "build_number": 8,
+  "download_url": "https://github.com/deividlima1234/BodeGo/releases/download/v2.0.0/bodego-v2.0.0.apk",
   "release_notes": [
-    "Navegación horizontal de categorías (Swipe): Deslizamiento suave entre categorías de productos y apertura fácil del menú lateral desde el borde.",
-    "Selector de logo desde Galería y Archivos: Selección y resguardo seguro de imagen comercial en el almacenamiento aislado de la aplicación.",
-    "Calibración tipográfica e imágenes en Wi-Fi IPP: Renderizado directo de alta definición a 300 DPI con tipografía e isotipos idénticos a Mopria.",
-    "Trazabilidad de impresión en tiempo real (RFC 8011): Animación sincronizada con la expulsión física de la hoja, consultas de estado (processing/completed) y detección inteligente de falta de papel con auto-reintento."
+    "Google Sheets Multi-Tenant Cloud Hub: Sincronización en la nube con hoja privada en Google Drive por negocio y auto-registro offline-first.",
+    "Cifrado y Respaldo de Cajeros: Almacenamiento seguro de cajeros y PIN de 4 dígitos encriptado (HMAC-SHA256) para acceso inmediato en múltiples teléfonos.",
+    "Tokens de Negocio y Solo Lectura: Protección de hojas de cálculo contra alteraciones accidentales en navegador mediante firmas criptográficas de tienda.",
+    "Actualización Legal y Normativa: Nuevos Términos de Servicio, Políticas de Privacidad y deslinde tributario (SUNAT) conforme a la Ley N° 29733."
   ],
   "is_mandatory": false,
   "min_supported_version": "1.0.0",
-  "published_at": "2026-11-18"
+  "published_at": "2026-11-20"
 }

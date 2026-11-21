@@ -1,9 +1,12 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:bodego/data/local/isar/collections/category.dart';
 import 'package:bodego/data/local/isar/collections/product.dart';
 import 'package:bodego/data/repositories/inventory_repository.dart';
 import 'package:bodego/presentation/widgets/modern_barcode_scanner.dart';
 import 'package:bodego/presentation/screens/inventory/wholesale_stock_screen.dart';
+import 'package:bodego/core/services/sync_queue_service.dart';
+import 'package:bodego/core/services/google_sheets_sync_service.dart';
 
 /// Pantalla principal del Módulo de Inventario con pestañas de Productos y Categorías.
 class InventoryScreen extends StatefulWidget {
@@ -123,6 +126,7 @@ class _InventoryScreenState extends State<InventoryScreen>
                   if (name.isEmpty) return;
 
                   await _inventoryRepository.addCategory(name, null);
+                  GoogleSheetsSyncService().triggerAutoBackupIfEnabled();
                   if (mounted) {
                     Navigator.pop(ctx);
                     _loadData();
@@ -462,6 +466,8 @@ class _InventoryScreenState extends State<InventoryScreen>
                             unit: selectedUnit,
                           );
                         }
+
+                        GoogleSheetsSyncService().triggerAutoBackupIfEnabled();
 
                         if (mounted) {
                           nav.pop();
@@ -806,6 +812,14 @@ class _InventoryScreenState extends State<InventoryScreen>
                                 newSalePrice: updatedSale,
                               );
 
+                              unawaited(SyncQueueService().enqueueStockReplenish(
+                                productId: product.id,
+                                productName: product.name,
+                                quantity: enteredQty,
+                                newCostPrice: updatedCost,
+                                newSalePrice: updatedSale,
+                              ));
+
                               if (mounted) {
                                 nav.pop();
                                 _loadData();
@@ -867,6 +881,7 @@ class _InventoryScreenState extends State<InventoryScreen>
 
     if (confirm == true) {
       await _inventoryRepository.deleteProduct(product.id);
+      GoogleSheetsSyncService().triggerAutoBackupIfEnabled();
       _loadData();
     }
   }
@@ -932,47 +947,47 @@ class _InventoryScreenState extends State<InventoryScreen>
             ),
             subtitle: Padding(
               padding: const EdgeInsets.only(top: 4.0),
-              child: Row(
-                children: [
-                  Text(
-                    'S/ ${product.salePrice.toStringAsFixed(2)}',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Theme.of(context).colorScheme.primary,
-                      fontSize: 13,
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 5.0),
-                    child: Text(
-                      '•',
-                      style: TextStyle(color: Colors.grey[400], fontSize: 11),
-                    ),
-                  ),
-                  Text(
-                    'Stock: ${_formatStock(product.stock, product.unit)}',
-                    style: TextStyle(
-                      color: isLowStock ? Colors.redAccent : Colors.grey[800],
-                      fontWeight: isLowStock ? FontWeight.bold : FontWeight.normal,
-                      fontSize: 13,
-                    ),
-                  ),
-                  if (isLowStock) ...[
-                    const SizedBox(width: 4),
-                    const Icon(Icons.warning_amber_rounded, size: 14, color: Colors.redAccent),
-                  ],
-                  if (categoryName.isNotEmpty) ...[
-                    const SizedBox(width: 6),
-                    Flexible(
-                      child: Text(
-                        '[$categoryName]',
-                        style: const TextStyle(fontSize: 11, color: Colors.grey),
-                        overflow: TextOverflow.ellipsis,
-                        maxLines: 1,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Row(
+                  children: [
+                    Text(
+                      'S/ ${product.salePrice.toStringAsFixed(2)}',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).colorScheme.primary,
+                        fontSize: 13,
                       ),
                     ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 5.0),
+                      child: Text(
+                        '•',
+                        style: TextStyle(color: Colors.grey[400], fontSize: 11),
+                      ),
+                    ),
+                    Text(
+                      'Stock: ${_formatStock(product.stock, product.unit)}',
+                      style: TextStyle(
+                        color: isLowStock ? Colors.redAccent : Colors.grey[800],
+                        fontWeight: isLowStock ? FontWeight.bold : FontWeight.normal,
+                        fontSize: 13,
+                      ),
+                    ),
+                    if (isLowStock) ...[
+                      const SizedBox(width: 4),
+                      const Icon(Icons.warning_amber_rounded, size: 14, color: Colors.redAccent),
+                    ],
+                    if (categoryName.isNotEmpty) ...[
+                      const SizedBox(width: 6),
+                      Text(
+                        '[$categoryName]',
+                        style: const TextStyle(fontSize: 11, color: Colors.grey),
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
             trailing: Row(
@@ -1139,6 +1154,7 @@ class _InventoryScreenState extends State<InventoryScreen>
 
                 if (confirm == true) {
                   await _inventoryRepository.deleteCategory(category.id);
+                  GoogleSheetsSyncService().triggerAutoBackupIfEnabled();
                   _loadData();
                 }
               },

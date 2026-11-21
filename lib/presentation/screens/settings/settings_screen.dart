@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -18,6 +19,10 @@ import 'package:bodego/presentation/screens/auth/widgets/legal_terms_modal.dart'
 import 'package:bodego/presentation/screens/settings/linked_devices_screen.dart';
 import 'package:bodego/core/services/app_version_service.dart';
 import 'package:bodego/core/services/ota_update_service.dart';
+import 'package:bodego/core/services/google_sheets_sync_service.dart';
+import 'package:bodego/core/services/sync_queue_service.dart';
+import 'package:bodego/core/services/cloud_security_manager.dart';
+import 'package:bodego/data/models/google_sheets_config.dart';
 import 'package:bodego/presentation/widgets/ota_update_modal.dart';
 
 /// Pantalla completa de Configuración del Sistema BodeGo con categorías colapsables:
@@ -171,6 +176,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final newConfig = _getCurrentDraftConfig();
     await _businessRepo.saveConfig(newConfig);
     await _printerRepo.saveConfig(_printerConfig);
+
+    // Sincronizar actualización de perfil comercial en la nube firmado con Token
+    unawaited(CloudSecurityManager().updateBusinessProfile(
+      businessName: newConfig.businessName,
+      ruc: newConfig.ruc,
+      phone: newConfig.phone,
+      address: newConfig.address,
+    ));
 
     if (mounted) {
       setState(() => _isSaving = false);
@@ -1711,37 +1724,56 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
 
             // ==========================================
-            // CATEGORÍA 5: MULTI-EQUIPO Y DISPOSITIVOS
+            // CATEGORÍA 5: MULTI-EQUIPO Y SINCRONIZACIÓN EN LA NUBE
             // ==========================================
-            _buildCollapsibleSection(
-              id: 'devices',
-              title: 'Multi-Equipo y Sincronización',
-              subtitle: 'Vincular terminales secundarias y exportar catálogo',
-              icon: Icons.devices_rounded,
-              child: Column(
-                children: [
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF4353FF).withOpacity(0.12),
-                        borderRadius: BorderRadius.circular(10),
+            ValueListenableBuilder<GoogleSheetsConfig>(
+              valueListenable: GoogleSheetsSyncService().configNotifier,
+              builder: (context, cloudConfig, _) {
+                return ValueListenableBuilder<int>(
+                  valueListenable: SyncQueueService().pendingCountNotifier,
+                  builder: (context, pendingCount, _) {
+                    final isConfigured = cloudConfig.isConfigured;
+                    String badge = isConfigured ? 'Google Sheets' : 'Sin Configurar';
+                    if (isConfigured && pendingCount > 0) {
+                      badge = '$pendingCount pendientes';
+                    }
+
+                    return _buildCollapsibleSection(
+                      id: 'devices',
+                      title: 'Multi-Equipo y Sincronización',
+                      subtitle: isConfigured
+                          ? 'Google Sheets conectado • Respaldos continuos'
+                          : 'Conecta con Google Sheets para respaldos y multi-equipo',
+                      icon: Icons.cloud_sync_rounded,
+                      badgeText: badge,
+                      child: Column(
+                        children: [
+                          ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF4353FF).withOpacity(0.12),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Icon(Icons.cloud_done_rounded, color: Color(0xFF4353FF)),
+                            ),
+                            title: const Text('Gestionar Nube Google Sheets y Equipos'),
+                            subtitle: const Text('Respaldos completos, cola offline, restaurar catálogo y emparejar con QR'),
+                            trailing: const Icon(Icons.chevron_right_rounded),
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (_) => const LinkedDevicesScreen()),
+                              );
+                            },
+                          ),
+                        ],
                       ),
-                      child: const Icon(Icons.qr_code_scanner_rounded, color: Color(0xFF4353FF)),
-                    ),
-                    title: const Text('Vincular y Gestionar Equipos'),
-                    subtitle: const Text('Generar código QR, emparejar con PIN y sincronizar datos'),
-                    trailing: const Icon(Icons.chevron_right_rounded),
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const LinkedDevicesScreen()),
-                      );
-                    },
-                  ),
-                ],
-              ),
+                    );
+                  },
+                );
+              },
             ),
 
             const SizedBox(height: 20),

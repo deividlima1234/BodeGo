@@ -1,6 +1,7 @@
 import 'package:isar/isar.dart';
 import 'package:bodego/data/local/isar/database_service.dart';
 import 'package:bodego/data/local/isar/collections/user.dart';
+import 'package:bodego/core/services/google_sheets_sync_service.dart';
 
 /// Repositorio encargado de gestionar los usuarios (Administradores y Cajeros) en Isar.
 class UserRepository {
@@ -19,6 +20,7 @@ class UserRepository {
     await _isar.writeTxn(() async {
       await _isar.users.put(admin);
     });
+    GoogleSheetsSyncService().triggerAutoBackupIfEnabled();
   }
 
   /// Crea y almacena un usuario con rol de Cajero (nombre y PIN de 4 dígitos).
@@ -31,6 +33,7 @@ class UserRepository {
     await _isar.writeTxn(() async {
       await _isar.users.put(cashier);
     });
+    GoogleSheetsSyncService().triggerAutoBackupIfEnabled();
   }
 
   /// Valida si existe un cajero con el PIN ingresado y lo retorna.
@@ -73,6 +76,20 @@ class UserRepository {
         await _isar.users.put(cashier);
       }
     });
+    GoogleSheetsSyncService().triggerAutoBackupIfEnabled();
+  }
+
+  /// Actualiza el nombre y/o PIN de un cajero específico
+  Future<void> updateCashier(int userId, {String? name, String? pin}) async {
+    final user = await _isar.users.get(userId);
+    if (user != null && user.role == 'cajero') {
+      await _isar.writeTxn(() async {
+        if (name != null && name.trim().isNotEmpty) user.name = name.trim();
+        if (pin != null && pin.trim().isNotEmpty) user.pin = pin.trim();
+        await _isar.users.put(user);
+      });
+      GoogleSheetsSyncService().triggerAutoBackupIfEnabled();
+    }
   }
 }
 

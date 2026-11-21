@@ -22,6 +22,7 @@ import 'package:bodego/presentation/screens/pos/widgets/discount_dialog.dart';
 import 'package:bodego/presentation/widgets/modern_barcode_scanner.dart';
 import 'package:bodego/core/services/sound_service.dart';
 import 'package:bodego/core/services/device_pairing_service.dart';
+import 'package:bodego/core/services/sync_queue_service.dart';
 
 /// Módulo de Caja (Punto de Venta) con catálogo reactivo en tiempo real,
 /// filtros por categoría, carrito flotante, emisión de tickets y gestión de fiados.
@@ -524,7 +525,6 @@ class _PosModuleScreenState extends State<PosModuleScreen> {
         .toList();
 
     // 3. Crear y persistir el ticket en el historial local
-    final isSec = await DevicePairingService().isSecondaryDevice();
     final ticket = await _ticketRepository.createTicket(
       subtotal: subtotal,
       discount: discount,
@@ -533,8 +533,9 @@ class _PosModuleScreenState extends State<PosModuleScreen> {
       cashierName: _cashierName,
       businessName: _businessName,
       items: ticketItems,
-      isSynced: !isSec,
+      isSynced: false,
     );
+    unawaited(SyncQueueService().enqueueSaleTicket(ticket));
 
     setState(() {
       _cart.clear();
@@ -633,7 +634,6 @@ class _PosModuleScreenState extends State<PosModuleScreen> {
         .toList();
 
     // 4. Crear y persistir el ticket de fiado en el historial
-    final isSec = await DevicePairingService().isSecondaryDevice();
     final ticket = await _ticketRepository.createTicket(
       subtotal: subtotal,
       discount: discount,
@@ -646,8 +646,9 @@ class _PosModuleScreenState extends State<PosModuleScreen> {
       cashierName: _cashierName,
       businessName: _businessName,
       items: ticketItems,
-      isSynced: !isSec,
+      isSynced: false,
     );
+    unawaited(SyncQueueService().enqueueSaleTicket(ticket));
 
     setState(() {
       _cart.clear();

@@ -216,31 +216,37 @@ class _LegalTermsModalState extends State<LegalTermsModal>
             number: '1',
             title: 'Aceptación y Licencia de Uso',
             body:
-                'Al instalar y utilizar la aplicación BodeGo, usted adquiere una licencia de uso no exclusiva, intransferible y revocable, diseñada específicamente para la gestión de puntos de venta en bodegas, minimarkets y negocios afines dentro del territorio nacional.',
+                'Al instalar y utilizar la aplicación BodeGo, usted adquiere una licencia de software comercial no exclusiva, intransferible y revocable, vinculada al identificador digital del dispositivo (Machine ID). La licencia habilita la operación de punto de venta, inventarios, cobros y arqueos en bodegas, minimarkets y comercios afines dentro del territorio nacional.',
           ),
           _buildLegalSection(
             number: '2',
-            title: 'Naturaleza del Software y Operación Offline',
+            title: 'Naturaleza del Software y Operación Offline-First',
             body:
-                'BodeGo opera bajo una arquitectura offline-first (desconectada). Toda la gestión de inventario, registro de ventas, control de caja y libreta de fiados se procesa y almacena en la memoria local de su dispositivo sin requerir conectividad continua a servidores externos.',
+                'BodeGo opera bajo una arquitectura desconectada (Offline-First). El inventario, ventas, turnos de caja y libreta de fiados se procesan y almacenan en la memoria local del terminal mediante Isar Database. La aplicación garantiza operatividad total continua sin requerir conexión a internet ni depender de servidores centrales para cobrar o registrar productos.',
           ),
           _buildLegalSection(
             number: '3',
-            title: 'Responsabilidad Contable y Comprobantes de Pago',
+            title: 'Responsabilidad Contable y Comprobantes de Pago (SUNAT)',
             body:
-                'BodeGo emite tickets de control interno y boletas operativas aptas para impresión térmica. El usuario o titular del negocio es el único responsable de la veracidad de los precios, declaración tributaria ante las autoridades correspondientes (SUNAT u organismos afines) y custodia de sus comprobantes.',
+                'BodeGo emite tickets de control interno y boletas operativas aptas para impresión térmica de 58mm y 80mm. La aplicación NO actúa como Proveedor de Servicios Electrónicos (PSE) ni Operador de Servicios Electrónicos (OSE) homologado ante la SUNAT. El titular del negocio o contribuyente registrado con RUC es el único y exclusivo responsable legal de la fijación de precios, la veracidad de sus ventas, la custodia de sus comprobantes y la declaración y pago de sus obligaciones tributarias conforme a su régimen fiscal (Nuevo RUS, Régimen MYPE Tributario o Régimen General).',
           ),
           _buildLegalSection(
             number: '4',
-            title: 'Respaldo y Seguridad de Información',
+            title: 'Respaldo Cloud y Soberanía de la Información',
             body:
-                'Dado que la información reside en su equipo, el usuario es responsable del cuidado físico de su terminal y de generar copias de seguridad periódicas mediante las herramientas provistas en el módulo de Ajustes.',
+                'El módulo opcional de sincronización y respaldo se conecta directamente a una Hoja de Cálculo privada dentro del Google Drive personal del titular (arquitectura aislada por negocio). El comerciante mantiene el 100% de la propiedad y custodia de sus copias de seguridad. La seguridad física del dispositivo y de las credenciales de la cuenta de Google asociada es responsabilidad exclusiva del usuario.',
           ),
           _buildLegalSection(
             number: '5',
-            title: 'Propiedad Intelectual',
+            title: 'Propiedad Intelectual y Restricciones',
             body:
-                'El código fuente, interfaces de usuario, animaciones vectoriales, logotipos y marcas asociadas a BodeGo y EddamCore son propiedad intelectual exclusiva de EddamCore. Queda prohibida su descompilación, reproducción o ingeniería inversa.',
+                'La arquitectura del software, código fuente, algoritmos, interfaces vectoriales, logotipos y marcas asociadas a BodeGo y EddamCore son propiedad intelectual exclusiva de EddamCore Technologies. Queda terminantemente prohibida su descompilación, ingeniería inversa, distribución no autorizada o modificación de su lógica.',
+          ),
+          _buildLegalSection(
+            number: '6',
+            title: 'Limitación de Responsabilidad y Hardware',
+            body:
+                'EddamCore proporciona el software "tal cual". En ningún caso la empresa será responsable por daños indirectos, pérdida física de hardware, rotura de terminales móviles, extravío de claves de acceso o discrepancias de caja derivadas de omisiones u errores humanos del operador.',
           ),
         ],
       ),
@@ -258,37 +264,44 @@ class _LegalTermsModalState extends State<LegalTermsModal>
         children: [
           _buildLegalHeaderBadge(
             title: 'Política de Privacidad y Datos',
-            subtitle: 'Compromiso estricto de confidencialidad y soberanía local',
+            subtitle: 'Compromiso estricto de confidencialidad, soberanía local y Ley N° 29733',
             icon: Icons.shield_outlined,
             color: const Color(0xFF00D084),
           ),
           const SizedBox(height: 16),
           _buildLegalSection(
             number: '1',
-            title: 'Principio de Privacidad Local (Cero Recolección Externa)',
+            title: 'Principio de Privacidad Local (Cero Rastreo Comercial)',
             body:
-                'En BodeGo creemos firmemente que los datos de su negocio pertenecen únicamente a usted. No recopilamos, transmitimos, vendemos ni compartimos sus listas de productos, precios, márgenes de ganancia ni nombres de sus clientes con ningún tercero o servidor en la nube sin su consentimiento explícito.',
+                'En BodeGo creemos firmemente que la información de su negocio le pertenece únicamente a usted. No recopilamos, no comercializamos, no monetizamos ni compartimos su catálogo de productos, precios de costo, márgenes de ganancia, ventas diarias ni nombres de clientes fiados con ninguna corporación externa sin su consentimiento explícito.',
           ),
           _buildLegalSection(
             number: '2',
-            title: 'Permisos del Dispositivo y Uso Justificado',
+            title: 'Permisos del Dispositivo y Uso Estricto Justificado',
             body:
-                'BodeGo solicita únicamente los permisos estrictamente indispensables para su funcionamiento:\n'
-                '• Bluetooth / Ubicación cercana: Exclusivamente para buscar y conectarse a impresoras térmicas de tickets (58mm / 80mm).\n'
-                '• Cámara del terminal: Únicamente para la lectura óptica de códigos de barras (EAN-13, QR) al registrar o vender productos.\n'
-                '• Almacenamiento local: Para guardar la base de datos interna y exportar reportes de cierre Z.',
+                'BodeGo solicita únicamente los permisos estrictamente indispensables para la operatividad del punto de venta:\n'
+                '• Cámara del Dispositivo: Utilizada exclusivamente por el lector óptico para escanear códigos de barras (EAN-13, QR) al registrar o vender productos. No captura fotografías personales ni transmite video.\n'
+                '• Bluetooth y Dispositivos Cercanos: Empleado exclusivamente para emparejar y enviar comandos de impresión ESC/POS a impresoras térmicas de tickets (58mm y 80mm).\n'
+                '• Red Local y Wi-Fi: Utilizado por el servidor embebido (puerto 8080) para la vinculación P2P directa entre terminales de la misma tienda (dueño y cajeros) y para la sincronización con Google Drive.\n'
+                '• Almacenamiento Local: Para guardar la base de datos interna y exportar reportes de cierre Z y arqueos de caja en formato PDF.',
           ),
           _buildLegalSection(
             number: '3',
-            title: 'Protección de Accesos y Credenciales',
+            title: 'Criptografía de PINs de Cajeros y Control de Accesos',
             body:
-                'Las contraseñas de administrador y los números PIN de los cajeros se almacenan encriptados en el almacenamiento seguro del sistema operativo, impidiendo accesos no autorizados en caso de extravío temporal del dispositivo.',
+                'El acceso a las funciones de cobro y turno está resguardado por PIN de 4 dígitos para cajeros y contraseña para el Administrador. Al sincronizar con la nube, cada PIN se almacena cifrado bajo el estándar criptográfico HMAC-SHA256 con salt aleatorio exclusivo del negocio (ENC:...), imposibilitando su lectura en texto plano aún abriendo la hoja de cálculo.',
           ),
           _buildLegalSection(
             number: '4',
-            title: 'Cumplimiento Normativo',
+            title: 'Seguridad en Google Sheets y Tokens de Negocio',
             body:
-                'Nuestras prácticas de tratamiento de datos cumplen con los lineamientos de la Ley N° 29733 (Ley de Protección de Datos Personales del Perú) y normativas internacionales de privacidad de aplicaciones móviles.',
+                'Toda petición de lectura, respaldo o actualización en Google Sheets viaja cifrada por HTTPS y firmada digitalmente con un Token Privado de Negocio (authToken + businessId). Las hojas de cálculo se configuran con advertencia de solo lectura en navegador para prevenir alteraciones accidentales fuera de la aplicación.',
+          ),
+          _buildLegalSection(
+            number: '5',
+            title: 'Cumplimiento Normativo (Ley N° 29733 de Perú)',
+            body:
+                'El tratamiento de los datos cumple con los principios de licitud, finalidad y proporcionalidad de la Ley N° 29733 (Ley de Protección de Datos Personales del Perú), garantizando al titular el pleno ejercicio de sus derechos de acceso, rectificación, cancelación y oposición (derechos ARCO).',
           ),
         ],
       ),

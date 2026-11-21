@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:bodego/core/theme/app_theme.dart';
 import 'package:bodego/core/services/app_version_service.dart';
 import 'package:bodego/core/services/license_service.dart';
+import 'package:bodego/core/services/sync_queue_service.dart';
+import 'package:bodego/core/services/google_sheets_sync_service.dart';
 import 'package:bodego/data/local/isar/database_service.dart';
 import 'package:bodego/presentation/screens/auth/splash_screen.dart';
 
@@ -10,6 +12,8 @@ Future<void> main() async {
   await DatabaseService.init();
   await AppVersionService.init();
   await LicenseService().init();
+  await SyncQueueService().init();
+  await GoogleSheetsSyncService().getConfig();
   runApp(const MyApp());
 }
 

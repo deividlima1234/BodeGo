@@ -4,6 +4,7 @@ import 'package:bodego/presentation/widgets/bodego_logo.dart';
 import 'package:bodego/presentation/screens/auth/widgets/legal_terms_modal.dart';
 import 'package:bodego/presentation/screens/auth/widgets/animated_pairing_badge.dart';
 import 'package:bodego/presentation/screens/auth/widgets/secondary_device_onboarding_modal.dart';
+import 'package:bodego/presentation/screens/auth/widgets/cloud_login_modal.dart';
 
 /// Pantalla de bienvenida institucional y presentación de BodeGo
 /// Muestra qué es, qué hace, el respaldo de EddamCore y los accesos legales.
@@ -35,52 +36,96 @@ class WelcomePresentationView extends StatelessWidget {
             children: [
               const SizedBox(height: 8),
 
-              // 1. Barra Superior: Badge Oficial + Ícono Animado de Vinculación
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF4353FF).withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: const Color(0xFF4353FF).withOpacity(0.2),
-                        width: 1,
-                      ),
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.storefront_rounded,
-                          size: 14,
-                          color: Color(0xFF4353FF),
-                        ),
-                        SizedBox(width: 6),
-                        Text(
-                          'Punto de Venta Oficial',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF4353FF),
-                            letterSpacing: 0.3,
+              // 1. Barra Superior: Badge Oficial + Iniciar Sesión + Ícono Animado de Vinculación
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.center,
+                child: SizedBox(
+                  width: MediaQuery.of(context).size.width - 48,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF4353FF).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: const Color(0xFF4353FF).withOpacity(0.2),
+                            width: 1,
                           ),
                         ),
-                      ],
-                    ),
-                  ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.storefront_rounded,
+                              size: 13,
+                              color: Color(0xFF4353FF),
+                            ),
+                            SizedBox(width: 5),
+                            Text(
+                              'POS Oficial',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF4353FF),
+                                letterSpacing: 0.2,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
 
-                  // Ícono Animado de Vinculación de Equipo Secundario
-                  AnimatedPairingBadge(
-                    onTap: () {
-                      SecondaryDeviceOnboardingModal.show(
-                        context,
-                        onPairedSuccessfully: onPairedSuccessfully,
-                      );
-                    },
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Botón Iniciar Sesión / Recuperar Cuenta en la Nube
+                          InkWell(
+                            onTap: () => CloudLoginModal.show(context),
+                            borderRadius: BorderRadius.circular(20),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF4353FF).withOpacity(0.12),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: const Color(0xFF4353FF).withOpacity(0.35),
+                                  width: 1,
+                                ),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.login_rounded, size: 12, color: Color(0xFF4353FF)),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'Iniciar Sesión',
+                                    style: TextStyle(
+                                      fontSize: 10.5,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFF4353FF),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          // Ícono Animado de Vinculación de Equipo Secundario
+                          AnimatedPairingBadge(
+                            onTap: () {
+                              SecondaryDeviceOnboardingModal.show(
+                                context,
+                                onPairedSuccessfully: onPairedSuccessfully,
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
 
               const SizedBox(height: 20),
@@ -322,6 +367,27 @@ class WelcomePresentationView extends StatelessWidget {
                     fontSize: 13.5,
                     fontWeight: FontWeight.w600,
                   ),
+                ),
+              ),
+
+              const SizedBox(height: 6),
+
+              // Botón Destacado: Recuperar cuenta para usuarios que cambiaron de celular
+              OutlinedButton.icon(
+                onPressed: () => CloudLoginModal.show(context),
+                icon: const Icon(Icons.cloud_download_outlined, size: 18, color: Color(0xFF4353FF)),
+                label: const Text(
+                  '¿Ya tienes cuenta? Inicia Sesión para recuperar',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF4353FF),
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  side: BorderSide(color: const Color(0xFF4353FF).withOpacity(0.35)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 ),
               ),
 

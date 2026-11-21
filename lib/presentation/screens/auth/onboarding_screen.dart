@@ -1,5 +1,6 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:bodego/data/models/business_config.dart';
+import 'package:bodego/core/services/google_sheets_sync_service.dart';
 import 'package:bodego/data/repositories/app_settings_repository.dart';
 import 'package:bodego/data/repositories/business_config_repository.dart';
 import 'package:bodego/data/repositories/user_repository.dart';
@@ -212,6 +213,15 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
       // 3. Crear usuario Cajero
       await _userRepository.createCashier(cashierName, _cashierPin);
+
+      // 3.5 Auto-registro en la Nube (Google Apps Script) para crear la hoja personal en Google Drive
+      unawaited(GoogleSheetsSyncService().registerBusiness(
+        businessName: businessName,
+        ownerName: adminName,
+        ownerEmail: adminEmail,
+        password: adminPassword,
+        ruc: _businessRucController.text.trim(),
+      ));
 
       if (!mounted) return;
 
