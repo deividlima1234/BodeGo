@@ -33,6 +33,28 @@ class GoogleSheetsSyncService {
 
   final ValueNotifier<bool> isSyncingNotifier = ValueNotifier<bool>(false);
 
+  static String? _toStr(dynamic val) {
+    if (val == null) return null;
+    final s = val.toString().trim();
+    return s.isEmpty ? null : s;
+  }
+
+  static String _toStrOr(dynamic val, [String fallback = '']) {
+    if (val == null) return fallback;
+    final s = val.toString().trim();
+    return s.isEmpty ? fallback : s;
+  }
+
+  static double _toDouble(dynamic val, [double fallback = 0.0]) {
+    if (val == null) return fallback;
+    if (val is num) return val.toDouble();
+    if (val is String) {
+      final parsed = double.tryParse(val.replaceAll(',', '.'));
+      if (parsed != null) return parsed;
+    }
+    return fallback;
+  }
+
   Future<File> _getConfigFile() async {
     final dir = await getApplicationDocumentsDirectory();
     return File('${dir.path}/$_configFile');
@@ -117,6 +139,11 @@ class GoogleSheetsSyncService {
 
   /// Realiza una solicitud HTTP POST con cuerpo JSON siguiendo redirecciones
   Future<Map<String, dynamic>?> _httpPost(String url, Map<String, dynamic> body) async {
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      debugPrint('Error: URL no válida en _httpPost: $url');
+      return null;
+    }
+
     final client = HttpClient();
     client.connectionTimeout = const Duration(seconds: 18);
 
@@ -175,7 +202,7 @@ class GoogleSheetsSyncService {
 
     final resp = await _httpGet(url, queryParams: {'action': 'ping'});
     if (resp != null && resp['success'] == true) {
-      final sName = resp['serverName'] as String? ?? 'BodeGo Cloud Hub';
+      final sName = _toStrOr(resp['serverName'], 'BodeGo Cloud Hub');
       return (
         success: true,
         message: '¡Servicio en la Nube Conectado y Operativo!\nHub: "$sName"',
@@ -204,26 +231,31 @@ class GoogleSheetsSyncService {
     }
 
     try {
+      final appSettings = await AppSettingsRepository().getSettings();
+      if (appSettings.isFirstRun) {
+        // En primer inicio (instalación limpia / onboarding pendiente), NUNCA registrar en segundo plano
+        return false;
+      }
+
       final bRepo = BusinessConfigRepository();
       final bConfig = await bRepo.getConfig();
       if (bConfig.businessName.trim().isEmpty) return false;
 
       final isar = DatabaseService.db;
       final users = await isar.users.where().findAll();
-      final admin = users.firstWhere(
-        (u) => u.role == 'admin',
-        orElse: () => User()
-          ..name = 'Administrador'
-          ..email = 'admin@bodego.pe'
-          ..password = '1234',
-      );
+      final admin = users.where((u) => u.role == 'admin').firstOrNull;
 
-      final email = (admin.email != null && admin.email!.contains('@'))
-          ? admin.email!.trim()
-          : 'admin@bodego.pe';
-      final pass = (admin.password != null && admin.password!.isNotEmpty)
-          ? admin.password!.trim()
-          : '1234';
+      if (admin == null ||
+          admin.email == null ||
+          !admin.email!.contains('@') ||
+          admin.password == null ||
+          admin.password!.trim().isEmpty) {
+        // NUNCA auto-registrar si no existe un administrador real creado por el usuario
+        return false;
+      }
+
+      final email = admin.email!.trim();
+      final pass = admin.password!.trim();
 
       debugPrint('Auto-registrando negocio en Google Cloud: ${bConfig.businessName} ($email)');
 
@@ -283,7 +315,21 @@ class GoogleSheetsSyncService {
     String? scriptUrl,
   }) async {
     final config = await getConfig();
-    final targetUrl = (scriptUrl != null && scriptUrl.isNotEmpty) ? scriptUrl : config.effectiveScriptUrl;
+    String targetUrl = (scriptUrl != null && scriptUrl.trim().isNotEmpty)
+        ? scriptUrl.trim()
+        : config.effectiveScriptUrl;
+
+    if (targetUrl.startsWith('aHR0') || (targetUrl.length > 50 && targetUrl.endsWith('=='))) {
+      try {
+        targetUrl = utf8.decode(base64.decode(targetUrl));
+      } catch (_) {
+        targetUrl = config.effectiveScriptUrl;
+      }
+    }
+    if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
+      targetUrl = config.effectiveScriptUrl;
+    }
+
     final license = await LicenseService().init();
 
     final payload = {
@@ -300,9 +346,9 @@ class GoogleSheetsSyncService {
     try {
       final resp = await _httpPost(targetUrl, payload);
       if (resp != null && resp['success'] == true) {
-        final bId = resp['businessId'] as String;
-        final token = resp['authToken'] as String;
-        final sheetId = resp['spreadsheetId'] as String?;
+        final bId = _toStrOr(resp['businessId']);
+        final token = _toStrOr(resp['authToken']);
+        final sheetId = _toStr(resp['spreadsheetId']);
 
         final updated = config.copyWith(
           scriptUrl: targetUrl,
@@ -318,7 +364,7 @@ class GoogleSheetsSyncService {
 
         return (
           success: true,
-          message: resp['message'] as String? ?? '¡Negocio registrado exitosamente en la nube!',
+          message: _toStrOr(resp['message'], '¡Negocio registrado exitosamente en la nube!'),
           businessId: bId,
         );
       }
@@ -348,7 +394,20 @@ class GoogleSheetsSyncService {
     String? scriptUrl,
   }) async {
     final config = await getConfig();
-    final targetUrl = (scriptUrl != null && scriptUrl.isNotEmpty) ? scriptUrl : config.effectiveScriptUrl;
+    String targetUrl = (scriptUrl != null && scriptUrl.trim().isNotEmpty)
+        ? scriptUrl.trim()
+        : config.effectiveScriptUrl;
+
+    if (targetUrl.startsWith('aHR0') || (targetUrl.length > 50 && targetUrl.endsWith('=='))) {
+      try {
+        targetUrl = utf8.decode(base64.decode(targetUrl));
+      } catch (_) {
+        targetUrl = config.effectiveScriptUrl;
+      }
+    }
+    if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
+      targetUrl = config.effectiveScriptUrl;
+    }
 
     final payload = {
       'action': 'loginBusiness',
@@ -367,13 +426,13 @@ class GoogleSheetsSyncService {
         );
       }
 
-      final bId = resp['businessId'] as String;
-      final token = resp['authToken'] as String;
-      final bName = resp['businessName'] as String? ?? 'Mi Bodega';
-      final bRuc = resp['ruc'] as String? ?? '';
-      final oName = resp['ownerName'] as String? ?? 'Administrador';
-      final oEmail = resp['ownerEmail'] as String? ?? email.trim();
-      final sheetId = resp['spreadsheetId'] as String?;
+      final bId = _toStrOr(resp['businessId']);
+      final token = _toStrOr(resp['authToken']);
+      final bName = _toStrOr(resp['businessName'], 'Mi Bodega');
+      final bRuc = _toStrOr(resp['ruc'], '');
+      final oName = _toStrOr(resp['ownerName'], 'Administrador');
+      final oEmail = _toStrOr(resp['ownerEmail'], email.trim());
+      final sheetId = _toStr(resp['spreadsheetId']);
       final catalog = resp['catalog'] as Map<String, dynamic>? ?? {};
 
       // 1. Guardar Configuración de Google Sheets
@@ -411,13 +470,13 @@ class GoogleSheetsSyncService {
       await isar.writeTxn(() async {
         // A. Sincronizar Usuarios (Cajeros con PINs desencriptados y Administradores)
         for (final item in usersData) {
-          final name = (item['name'] as String? ?? '').trim();
-          final role = (item['role'] as String? ?? 'cajero').trim();
-          final encPin = (item['pin'] as String? ?? '').trim();
+          final name = _toStrOr(item['name']);
+          final role = _toStrOr(item['role'], 'cajero');
+          final encPin = _toStrOr(item['pin']);
           final plainPin = encPin.isNotEmpty
               ? CloudSecurityManager.decryptPin(encPin, secretKey: secretKey)
               : '';
-          final email = (item['email'] as String?)?.trim();
+          final userEmail = _toStr(item['email']);
 
           if (name.isEmpty) continue;
 
@@ -433,7 +492,7 @@ class GoogleSheetsSyncService {
             ..role = role;
 
           if (plainPin.isNotEmpty) u.pin = plainPin;
-          if (email != null && email.isNotEmpty) u.email = email;
+          if (userEmail != null && userEmail.isNotEmpty) u.email = userEmail;
           await isar.users.put(u);
         }
 
@@ -456,38 +515,38 @@ class GoogleSheetsSyncService {
         }
         final Map<String, Category> categoryMap = {};
         for (final item in categoriesData) {
-          final name = (item['name'] as String? ?? '').trim();
+          final name = _toStrOr(item['name']);
           if (name.isEmpty) continue;
           var cat = await isar.categorys.filter().nameEqualTo(name).findFirst();
           if (cat == null) {
             cat = Category()
               ..name = name
-              ..hexColor = item['hexColor'] as String? ?? '#4353FF';
+              ..hexColor = _toStrOr(item['hexColor'], '#4353FF');
             await isar.categorys.put(cat);
           }
           categoryMap[name] = cat;
         }
 
         for (final item in productsData) {
-          final name = (item['name'] as String? ?? '').trim();
-          final barcode = item['barcode'] as String?;
+          final name = _toStrOr(item['name']);
+          final barcode = _toStr(item['barcode']);
           if (name.isEmpty) continue;
 
           Product? prod;
-          if (barcode != null && barcode.trim().isNotEmpty) {
-            prod = await isar.products.filter().barcodeEqualTo(barcode.trim()).findFirst();
+          if (barcode != null && barcode.isNotEmpty) {
+            prod = await isar.products.filter().barcodeEqualTo(barcode).findFirst();
           }
           prod ??= await isar.products.filter().nameEqualTo(name, caseSensitive: false).findFirst();
 
           prod ??= Product()..name = name;
           prod.barcode = barcode;
-          prod.costPrice = (item['costPrice'] as num?)?.toDouble() ?? 0.0;
-          prod.salePrice = (item['salePrice'] as num?)?.toDouble() ?? 0.0;
-          prod.stock = (item['stock'] as num?)?.toDouble() ?? 0.0;
-          prod.minStock = (item['minStock'] as num?)?.toDouble() ?? 5.0;
-          prod.unit = item['unit'] as String? ?? 'und';
+          prod.costPrice = _toDouble(item['costPrice'], 0.0);
+          prod.salePrice = _toDouble(item['salePrice'], 0.0);
+          prod.stock = _toDouble(item['stock'], 0.0);
+          prod.minStock = _toDouble(item['minStock'], 5.0);
+          prod.unit = _toStrOr(item['unit'], 'und');
 
-          final catName = item['categoryName'] as String?;
+          final catName = _toStr(item['categoryName']);
           if (catName != null && categoryMap.containsKey(catName)) {
             prod.category.value = categoryMap[catName];
           }
@@ -498,17 +557,17 @@ class GoogleSheetsSyncService {
         }
 
         for (final item in customersData) {
-          final name = (item['name'] as String? ?? '').trim();
+          final name = _toStrOr(item['name']);
           if (name.isEmpty) continue;
           var cust = await isar.customers.filter().nameEqualTo(name, caseSensitive: false).findFirst();
           cust ??= Customer()
             ..name = name
             ..createdAt = DateTime.now();
 
-          cust.phone = item['phone'] as String?;
-          cust.address = item['address'] as String?;
-          cust.creditLimit = (item['creditLimit'] as num?)?.toDouble() ?? 100.0;
-          cust.currentDebt = (item['currentDebt'] as num?)?.toDouble() ?? 0.0;
+          cust.phone = _toStr(item['phone']);
+          cust.address = _toStr(item['address']);
+          cust.creditLimit = _toDouble(item['creditLimit'], 100.0);
+          cust.currentDebt = _toDouble(item['currentDebt'], 0.0);
           await isar.customers.put(cust);
         }
       });
@@ -761,38 +820,38 @@ class GoogleSheetsSyncService {
       await isar.writeTxn(() async {
         final Map<String, Category> categoryMap = {};
         for (final item in categoriesData) {
-          final name = (item['name'] as String? ?? '').trim();
+          final name = _toStrOr(item['name']);
           if (name.isEmpty) continue;
           var cat = await isar.categorys.filter().nameEqualTo(name).findFirst();
           if (cat == null) {
             cat = Category()
               ..name = name
-              ..hexColor = item['hexColor'] as String? ?? '#4353FF';
+              ..hexColor = _toStrOr(item['hexColor'], '#4353FF');
             await isar.categorys.put(cat);
           }
           categoryMap[name] = cat;
         }
 
         for (final item in productsData) {
-          final name = (item['name'] as String? ?? '').trim();
-          final barcode = item['barcode'] as String?;
+          final name = _toStrOr(item['name']);
+          final barcode = _toStr(item['barcode']);
           if (name.isEmpty) continue;
 
           Product? prod;
-          if (barcode != null && barcode.trim().isNotEmpty) {
-            prod = await isar.products.filter().barcodeEqualTo(barcode.trim()).findFirst();
+          if (barcode != null && barcode.isNotEmpty) {
+            prod = await isar.products.filter().barcodeEqualTo(barcode).findFirst();
           }
           prod ??= await isar.products.filter().nameEqualTo(name, caseSensitive: false).findFirst();
 
           prod ??= Product()..name = name;
           prod.barcode = barcode;
-          prod.costPrice = (item['costPrice'] as num?)?.toDouble() ?? 0.0;
-          prod.salePrice = (item['salePrice'] as num?)?.toDouble() ?? 0.0;
-          prod.stock = (item['stock'] as num?)?.toDouble() ?? 0.0;
-          prod.minStock = (item['minStock'] as num?)?.toDouble() ?? 5.0;
-          prod.unit = item['unit'] as String? ?? 'und';
+          prod.costPrice = _toDouble(item['costPrice'], 0.0);
+          prod.salePrice = _toDouble(item['salePrice'], 0.0);
+          prod.stock = _toDouble(item['stock'], 0.0);
+          prod.minStock = _toDouble(item['minStock'], 5.0);
+          prod.unit = _toStrOr(item['unit'], 'und');
 
-          final catName = item['categoryName'] as String?;
+          final catName = _toStr(item['categoryName']);
           if (catName != null && categoryMap.containsKey(catName)) {
             prod.category.value = categoryMap[catName];
           }
@@ -803,17 +862,17 @@ class GoogleSheetsSyncService {
         }
 
         for (final item in customersData) {
-          final name = (item['name'] as String? ?? '').trim();
+          final name = _toStrOr(item['name']);
           if (name.isEmpty) continue;
           var cust = await isar.customers.filter().nameEqualTo(name, caseSensitive: false).findFirst();
           cust ??= Customer()
             ..name = name
             ..createdAt = DateTime.now();
 
-          cust.phone = item['phone'] as String?;
-          cust.address = item['address'] as String?;
-          cust.creditLimit = (item['creditLimit'] as num?)?.toDouble() ?? 100.0;
-          cust.currentDebt = (item['currentDebt'] as num?)?.toDouble() ?? 0.0;
+          cust.phone = _toStr(item['phone']);
+          cust.address = _toStr(item['address']);
+          cust.creditLimit = _toDouble(item['creditLimit'], 100.0);
+          cust.currentDebt = _toDouble(item['currentDebt'], 0.0);
           await isar.customers.put(cust);
         }
 
@@ -822,13 +881,13 @@ class GoogleSheetsSyncService {
         final secretKey = '${config.businessId ?? "BODEGO"}_${GoogleSheetsConfig.cloudSecretKey}';
 
         for (final item in usersData) {
-          final name = (item['name'] as String? ?? '').trim();
-          final role = (item['role'] as String? ?? 'cajero').trim();
-          final encPin = (item['pin'] as String? ?? '').trim();
+          final name = _toStrOr(item['name']);
+          final role = _toStrOr(item['role'], 'cajero');
+          final encPin = _toStrOr(item['pin']);
           final plainPin = encPin.isNotEmpty
               ? CloudSecurityManager.decryptPin(encPin, secretKey: secretKey)
               : '';
-          final email = (item['email'] as String?)?.trim();
+          final userEmail = _toStr(item['email']);
 
           if (name.isEmpty) continue;
 
@@ -844,7 +903,7 @@ class GoogleSheetsSyncService {
             ..role = role;
 
           if (plainPin.isNotEmpty) u.pin = plainPin;
-          if (email != null && email.isNotEmpty) u.email = email;
+          if (userEmail != null && userEmail.isNotEmpty) u.email = userEmail;
           await isar.users.put(u);
         }
       });
@@ -902,18 +961,18 @@ class GoogleSheetsSyncService {
 
     await isar.writeTxn(() async {
       for (final up in updates) {
-        final originDevice = up['deviceId'] as String?;
+        final originDevice = _toStr(up['deviceId']);
         if (originDevice == myMachineId) continue;
 
-        final type = up['type'] as String?;
+        final type = _toStr(up['type']);
         final data = (up['data'] as Map<String, dynamic>? ?? {});
 
         if (type == 'VENTA') {
           final ticket = data['ticket'] as Map<String, dynamic>?;
           final items = (ticket?['items'] as List<dynamic>? ?? []);
           for (final itm in items) {
-            final pName = itm['name'] as String?;
-            final qty = (itm['quantity'] as num?)?.toDouble() ?? 0.0;
+            final pName = _toStr(itm['name']);
+            final qty = _toDouble(itm['quantity'], 0.0);
             if (pName != null && qty > 0) {
               final prod = await isar.products.filter().nameEqualTo(pName, caseSensitive: false).findFirst();
               if (prod != null) {
@@ -924,8 +983,8 @@ class GoogleSheetsSyncService {
           }
 
           final isCredit = ticket?['isCredit'] as bool? ?? false;
-          final total = (ticket?['total'] as num?)?.toDouble() ?? 0.0;
-          final cName = ticket?['customerName'] as String?;
+          final total = _toDouble(ticket?['total'], 0.0);
+          final cName = _toStr(ticket?['customerName']);
           if (isCredit && cName != null && cName.isNotEmpty && total > 0) {
             final cust = await isar.customers.filter().nameEqualTo(cName, caseSensitive: false).findFirst();
             if (cust != null) {
@@ -935,8 +994,8 @@ class GoogleSheetsSyncService {
           }
           applied++;
         } else if (type == 'ABONO_DEUDA') {
-          final cName = data['customerName'] as String?;
-          final amount = (data['amount'] as num?)?.toDouble() ?? 0.0;
+          final cName = _toStr(data['customerName']);
+          final amount = _toDouble(data['amount'], 0.0);
           if (cName != null && amount > 0) {
             final cust = await isar.customers.filter().nameEqualTo(cName, caseSensitive: false).findFirst();
             if (cust != null) {
@@ -946,9 +1005,9 @@ class GoogleSheetsSyncService {
           }
           applied++;
         } else if (type == 'REPOSICION_STOCK') {
-          final pName = data['productName'] as String?;
-          final qty = (data['quantity'] as num?)?.toDouble() ?? 0.0;
-          final newCost = (data['newCostPrice'] as num?)?.toDouble();
+          final pName = _toStr(data['productName']);
+          final qty = _toDouble(data['quantity'], 0.0);
+          final newCost = (data['newCostPrice'] != null) ? _toDouble(data['newCostPrice']) : null;
           if (pName != null && qty > 0) {
             final prod = await isar.products.filter().nameEqualTo(pName, caseSensitive: false).findFirst();
             if (prod != null) {

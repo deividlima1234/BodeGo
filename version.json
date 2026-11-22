@@ -1,14 +1,14 @@
 {
-  "latest_version": "2.0.0",
-  "build_number": 8,
-  "download_url": "https://github.com/deividlima1234/BodeGo/releases/download/v2.0.0/bodego-v2.0.0.apk",
+  "latest_version": "2.0.1",
+  "build_number": 9,
+  "download_url": "https://github.com/deividlima1234/BodeGo/releases/download/v2.0.1/bodego-v2.0.1.apk",
   "release_notes": [
-    "Google Sheets Multi-Tenant Cloud Hub: Sincronización en la nube con hoja privada en Google Drive por negocio y auto-registro offline-first.",
-    "Cifrado y Respaldo de Cajeros: Almacenamiento seguro de cajeros y PIN de 4 dígitos encriptado (HMAC-SHA256) para acceso inmediato en múltiples teléfonos.",
-    "Tokens de Negocio y Solo Lectura: Protección de hojas de cálculo contra alteraciones accidentales en navegador mediante firmas criptográficas de tienda.",
-    "Actualización Legal y Normativa: Nuevos Términos de Servicio, Políticas de Privacidad y deslinde tributario (SUNAT) conforme a la Ley N° 29733."
+    "Gestión de Credenciales en Ajustes: Modales dedicados para cambiar contraseña/datos del Administrador y reasignar el PIN de 4 dígitos del Cajero con autorización segura.",
+    "Compatibilidad Android 14 (API 34): Actualización de targetSdkVersion a 34 y eliminación de advertencias de seguridad de Google Play Protect.",
+    "Instalación Limpia: Supresión de auto-registro y datos ficticios predeterminados en instalaciones nuevas.",
+    "Sincronización Cloud Robusta: Conversión tolerante de tipos numéricos (RUC, códigos de barra y teléfonos) desde Google Sheets para evitar fallos de parseo."
   ],
   "is_mandatory": false,
   "min_supported_version": "1.0.0",
-  "published_at": "2026-11-20"
+  "published_at": "2026-11-21"
 }

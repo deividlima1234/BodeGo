@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:bodego/data/models/google_sheets_config.dart';
 import 'package:bodego/core/services/google_sheets_sync_service.dart';
 import 'package:bodego/presentation/screens/pos/main_pos_screen.dart';
 
@@ -42,7 +43,14 @@ class _CloudLoginModalState extends State<CloudLoginModal> {
   Future<void> _initUrl() async {
     final conf = await _syncService.getConfig();
     if (mounted) {
-      _urlController.text = conf.scriptUrl;
+      // Solo mostrar en el controller si el usuario tiene una URL personalizada válida (que no sea el secreto Base64)
+      if (conf.scriptUrl != GoogleSheetsConfig.cloudSecretKey &&
+          !conf.scriptUrl.startsWith('aHR0') &&
+          conf.scriptUrl.startsWith('http')) {
+        _urlController.text = conf.scriptUrl;
+      } else {
+        _urlController.text = '';
+      }
     }
   }
 
@@ -57,7 +65,7 @@ class _CloudLoginModalState extends State<CloudLoginModal> {
   Future<void> _handleLogin() async {
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
-    final url = _urlController.text.trim();
+    final rawUrl = _urlController.text.trim();
 
     if (email.isEmpty || !email.contains('@')) {
       setState(() => _errorMessage = 'Ingresa un correo electrónico válido');
@@ -69,6 +77,15 @@ class _CloudLoginModalState extends State<CloudLoginModal> {
       return;
     }
 
+    // Filtrar para que solo se pase URL personalizada si realmente es una URL HTTP(S) válida y no la clave Base64
+    String? validCustomUrl;
+    if (rawUrl.isNotEmpty &&
+        rawUrl.startsWith('http') &&
+        !rawUrl.startsWith('aHR0') &&
+        !rawUrl.endsWith('==')) {
+      validCustomUrl = rawUrl;
+    }
+
     setState(() {
       _isLoading = true;
       _errorMessage = null;
@@ -77,7 +94,7 @@ class _CloudLoginModalState extends State<CloudLoginModal> {
     final res = await _syncService.loginBusiness(
       email: email,
       password: password,
-      scriptUrl: url.isNotEmpty ? url : null,
+      scriptUrl: validCustomUrl,
     );
 
     if (!mounted) return;

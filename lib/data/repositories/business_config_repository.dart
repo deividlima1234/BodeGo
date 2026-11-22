@@ -41,16 +41,20 @@ class BusinessConfigRepository {
       final appSettings = await _appSettingsRepo.getSettings();
       final currentName = (appSettings.businessName?.trim().isNotEmpty ?? false)
           ? appSettings.businessName!.trim()
-          : 'BODEGA MASCHERANO';
+          : '';
 
       final defaultConfig = BusinessConfig(
         businessName: currentName,
       );
 
-      await saveConfig(defaultConfig);
+      // Solo persistir si la app ya no está en su primer inicio (onboarding completado)
+      if (!appSettings.isFirstRun && currentName.isNotEmpty) {
+        await saveConfig(defaultConfig);
+      }
+      configNotifier.value = defaultConfig;
       return defaultConfig;
     } catch (e) {
-      final fallback = const BusinessConfig();
+      const fallback = BusinessConfig();
       configNotifier.value = fallback;
       return fallback;
     }

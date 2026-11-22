@@ -105,6 +105,7 @@ class CloudSecurityManager {
       'clientVersion': AppVersionService.versionName,
       'machineId': license.machineId,
       'data': data ?? {},
+      if (data != null) ...data,
     };
 
     return await _httpPost(config.effectiveScriptUrl, payload);
@@ -115,6 +116,7 @@ class CloudSecurityManager {
     String? businessName,
     String? ruc,
     String? ownerName,
+    String? ownerEmail,
     String? newPassword,
     String? phone,
     String? address,
@@ -126,13 +128,21 @@ class CloudSecurityManager {
           if (businessName != null) 'businessName': businessName,
           if (ruc != null) 'ruc': ruc,
           if (ownerName != null) 'ownerName': ownerName,
+          if (ownerEmail != null) 'ownerEmail': ownerEmail,
           if (newPassword != null) 'newPassword': newPassword,
+          if (newPassword != null) 'password': newPassword,
           if (phone != null) 'phone': phone,
           if (address != null) 'address': address,
         },
       );
 
       if (res != null && res['success'] == true) {
+        if (ownerEmail != null && ownerEmail.trim().isNotEmpty) {
+          final config = await _syncService.getConfig();
+          if (config.isTenantAuthenticated) {
+            await _syncService.saveConfig(config.copyWith(ownerEmail: ownerEmail.trim()));
+          }
+        }
         return (
           success: true,
           message: res['message'] as String? ?? 'Perfil actualizado en la nube',

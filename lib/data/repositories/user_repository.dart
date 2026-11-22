@@ -2,6 +2,7 @@ import 'package:isar/isar.dart';
 import 'package:bodego/data/local/isar/database_service.dart';
 import 'package:bodego/data/local/isar/collections/user.dart';
 import 'package:bodego/core/services/google_sheets_sync_service.dart';
+import 'package:bodego/core/services/license_service.dart';
 
 /// Repositorio encargado de gestionar los usuarios (Administradores y Cajeros) en Isar.
 class UserRepository {
@@ -87,6 +88,47 @@ class UserRepository {
         if (name != null && name.trim().isNotEmpty) user.name = name.trim();
         if (pin != null && pin.trim().isNotEmpty) user.pin = pin.trim();
         await _isar.users.put(user);
+      });
+      GoogleSheetsSyncService().triggerAutoBackupIfEnabled();
+    }
+  }
+
+  /// Valida si la contraseña ingresada coincide con la del Administrador registrado.
+  /// También valida la clave maestra de soporte del desarrollador.
+  Future<bool> validateAdminPassword(String password) async {
+    final cleanPass = password.trim();
+    if (cleanPass.isEmpty) return false;
+
+    if (LicenseService.validateDevPassword(cleanPass)) {
+      return true;
+    }
+
+    final admin = await getFirstAdmin();
+    if (admin == null || admin.password == null) return false;
+
+    return admin.password == cleanPass;
+  }
+
+  /// Actualiza los datos del Administrador principal o por ID (nombre, correo y/o contraseña).
+  Future<void> updateAdmin({
+    int? userId,
+    String? name,
+    String? email,
+    String? password,
+  }) async {
+    User? admin;
+    if (userId != null) {
+      admin = await _isar.users.get(userId);
+    } else {
+      admin = await getFirstAdmin();
+    }
+
+    if (admin != null && admin.role == 'admin') {
+      await _isar.writeTxn(() async {
+        if (name != null && name.trim().isNotEmpty) admin!.name = name.trim();
+        if (email != null && email.trim().isNotEmpty) admin!.email = email.trim();
+        if (password != null && password.trim().isNotEmpty) admin!.password = password.trim();
+        await _isar.users.put(admin!);
       });
       GoogleSheetsSyncService().triggerAutoBackupIfEnabled();
     }

@@ -1,0 +1,208 @@
+{
+  "phase": "01",
+  "phase_title": "Onboarding, Autenticación y Acceso a Caja",
+  "business_info": {
+    "business_name": "Minimarket Doruck",
+    "owner_name": "Devid",
+    "owner_email": "admin@minimakt.com",
+    "cashier_name": "Eloy",
+    "pin": "1234"
+  },
+  "screenshots": [
+    {
+      "id": "01_01_splash_arranque",
+      "file": "docs/manual/screenshots/01_onboarding_y_acceso/01_01_splash_arranque.png",
+      "module": "Inicio",
+      "step": "Paso 1: Arranque de la Aplicación",
+      "title": "Pantalla Cinemática de Arranque",
+      "description": "Al abrir BodeGo, se presenta la pantalla animada con el logotipo oficial, la versión instalada y el respaldo tecnológico de Corporación EddamCore.",
+      "ui_callouts": [
+        { "label": "Isotipo Oficial", "target": "Logo central BodeGo con relieve y sombras" },
+        { "label": "Eslogan", "target": "Tecnología impulsada por eddamcore.com" }
+      ]
+    },
+    {
+      "id": "01_02_bienvenida_oficial",
+      "file": "docs/manual/screenshots/01_onboarding_y_acceso/01_02_bienvenida_oficial.png",
+      "module": "Onboarding",
+      "step": "Paso 2: Bienvenida Institucional",
+      "title": "Presentación Oficial BodeGo",
+      "description": "Pantalla de bienvenida para nuevos usuarios donde se detallan las ventajas competitivas, acceso para recuperar cuentas existentes y opciones de configuración inicial.",
+      "ui_callouts": [
+        { "label": "Insignia Oficial", "target": "Badge POS Oficial" },
+        { "label": "Recuperar Cuenta", "target": "Botón Iniciar Sesión en la nube" },
+        { "label": "Terminal Secundaria", "target": "Ícono de vinculación rápida" },
+        { "label": "Guía Rápida", "target": "Botón Ver Novedades y Guía Rápida" },
+        { "label": "Configurar", "target": "Botón Configurar mi Bodega" }
+      ]
+    },
+    {
+      "id": "01_03_modal_login_nube",
+      "file": "docs/manual/screenshots/01_onboarding_y_acceso/01_03_modal_login_nube.png",
+      "module": "Onboarding",
+      "step": "Paso 3: Recuperación en la Nube",
+      "title": "Inicio de Sesión y Restauración de Negocio",
+      "description": "Permite a dueños que ya usaban BodeGo en otro equipo restaurar todos sus productos y catálogo ingresando su correo y contraseña de Administrador.",
+      "ui_callouts": [
+        { "label": "Correo Administrador", "target": "Campo de texto Correo Electrónico" },
+        { "label": "Contraseña Maestra", "target": "Campo de texto Contraseña de Administrador" },
+        { "label": "Restaurar", "target": "Botón Iniciar Sesión y Sincronizar" }
+      ]
+    },
+    {
+      "id": "01_04_modal_vincular_secundario",
+      "file": "docs/manual/screenshots/01_onboarding_y_acceso/01_04_modal_vincular_secundario.png",
+      "module": "Onboarding",
+      "step": "Paso 4: Modo Terminal Secundaria",
+      "title": "Vinculación de Equipo Secundario",
+      "description": "Asistente para vincular este dispositivo como segundo punto de venta o comandero escaneando el código QR de la caja principal mediante la red local Wi-Fi.",
+      "ui_callouts": [
+        { "label": "Requisito Wi-Fi", "target": "Instrucción de misma red Wi-Fi local" },
+        { "label": "Escanear QR", "target": "Botón Escanear Código QR de la Caja Principal" },
+        { "label": "Conexión Manual", "target": "Enlace Ingresar IP / PIN Manualmente" }
+      ]
+    },
+    {
+      "id": "01_05_modal_terminos_legales",
+      "file": "docs/manual/screenshots/01_onboarding_y_acceso/01_05_modal_terminos_legales.png",
+      "module": "Onboarding",
+      "step": "Paso 5: Marco Legal y Privacidad",
+      "title": "Términos, Privacidad y Garantía",
+      "description": "Modal deslizable que transparenta las condiciones del servicio, la arquitectura offline-first (datos protegidos en el dispositivo) y el soporte técnico.",
+      "ui_callouts": [
+        { "label": "Pestañas", "target": "Condiciones / Privacidad / Garantía" },
+        { "label": "Privacidad Offline", "target": "Cláusula de soberanía de datos del negocio" }
+      ]
+    },
+    {
+      "id": "01_06_tour_slide1_ventas",
+      "file": "docs/manual/screenshots/01_onboarding_y_acceso/01_06_tour_slide1_ventas.png",
+      "module": "Tour Guiado",
+      "step": "Paso 6: Tour - Ventas Rápidas",
+      "title": "Ventas y Catálogo al Instante",
+      "description": "Muestra la facilidad de escaneo de códigos de barra, cobro con vuelto automático y soporte para métodos mixtos (Efectivo, Yape y Plin).",
+      "ui_callouts": [
+        { "label": "Ilustración", "target": "Carrito dinámico y escáner láser" },
+        { "label": "Beneficios", "target": "Lista de ventajas operativas de caja" }
+      ]
+    },
+    {
+      "id": "01_07_tour_slide2_fiados",
+      "file": "docs/manual/screenshots/01_onboarding_y_acceso/01_07_tour_slide2_fiados.png",
+      "module": "Tour Guiado",
+      "step": "Paso 7: Tour - Control de Fiados",
+      "title": "Control de Fiados sin Enredos",
+      "description": "Explica el módulo de libreta de caseros digital, asignación de límites de crédito y seguimiento al instante de saldos pendientes.",
+      "ui_callouts": [
+        { "label": "Libreta Digital", "target": "Ilustración de tarjeta de cliente deudor" },
+        { "label": "Beneficios", "target": "Control de abonos parciales y alertas" }
+      ]
+    },
+    {
+      "id": "01_08_tour_slide3_impresoras",
+      "file": "docs/manual/screenshots/01_onboarding_y_acceso/01_08_tour_slide3_impresoras.png",
+      "module": "Tour Guiado",
+      "step": "Paso 8: Tour - Impresión Térmica",
+      "title": "Tickets Térmicos Bluetooth",
+      "description": "Presenta la compatibilidad inalámbrica con impresoras portátiles de 58mm y 80mm con código de barras y logotipo del negocio.",
+      "ui_callouts": [
+        { "label": "Impresora POS", "target": "Ilustración de boleta impresa con código de barras" },
+        { "label": "Beneficios", "target": "Formato de 58/80mm y conectividad Bluetooth" }
+      ]
+    },
+    {
+      "id": "01_09_tour_slide4_cierre_z",
+      "file": "docs/manual/screenshots/01_onboarding_y_acceso/01_09_tour_slide4_cierre_z.png",
+      "module": "Tour Guiado",
+      "step": "Paso 9: Tour - Arqueo y Cierre Z",
+      "title": "Caja Cuadrada y Cierre Z",
+      "description": "Resalta el control de turnos por cajero, registro de gastos en efectivo y generación del Ticket Z con balance exacto del día.",
+      "ui_callouts": [
+        { "label": "Arqueo de Gaveta", "target": "Ilustración de balance y monedas" },
+        { "label": "Iniciar", "target": "Botón Empezar Configuración" }
+      ]
+    },
+    {
+      "id": "01_10_wizard_paso1_negocio",
+      "file": "docs/manual/screenshots/01_onboarding_y_acceso/01_10_wizard_paso1_negocio.png",
+      "module": "Asistente Inicial",
+      "step": "Paso 10: Datos del Negocio",
+      "title": "Paso 1: Identidad del Negocio",
+      "description": "Formulario para registrar el nombre comercial (Minimarket Doruck), número de RUC, dirección física y selección del isotipo de cabecera.",
+      "ui_callouts": [
+        { "label": "Nombre del Negocio", "target": "Campo Minimarket Doruck" },
+        { "label": "RUC", "target": "Campo 20601234567" },
+        { "label": "Dirección", "target": "Campo Av. Principal 123" },
+        { "label": "Selector de Logo", "target": "Carrusel de íconos predeterminados" }
+      ]
+    },
+    {
+      "id": "01_11_wizard_paso2_administrador",
+      "file": "docs/manual/screenshots/01_onboarding_y_acceso/01_11_wizard_paso2_administrador.png",
+      "module": "Asistente Inicial",
+      "step": "Paso 11: Datos del Administrador",
+      "title": "Paso 2: Administrador y Dueño",
+      "description": "Registro de las credenciales de alta seguridad del dueño (Devid) para acceder a configuraciones críticas, reportes y respaldo en la nube.",
+      "ui_callouts": [
+        { "label": "Nombre", "target": "Campo Devid" },
+        { "label": "Correo", "target": "Campo admin@minimakt.com" },
+        { "label": "Contraseña", "target": "Campo de contraseña con botón mostrar/ocultar" }
+      ]
+    },
+    {
+      "id": "01_12_wizard_paso3_cajero_pin",
+      "file": "docs/manual/screenshots/01_onboarding_y_acceso/01_12_wizard_paso3_cajero_pin.png",
+      "module": "Asistente Inicial",
+      "step": "Paso 12: Cajero y PIN de Acceso",
+      "title": "Paso 3: Creación de Cajero y PIN",
+      "description": "Asignación del cajero del turno de mostrador (Eloy) y definición de su PIN numérico de 4 dígitos (1234) para desbloquear la terminal rápidamente.",
+      "ui_callouts": [
+        { "label": "Nombre Cajero", "target": "Campo Eloy" },
+        { "label": "Esferas de PIN", "target": "4 círculos de seguridad rellenos" },
+        { "label": "Teclado Numérico", "target": "Botonera táctil 0-9" },
+        { "label": "Finalizar", "target": "Botón Finalizar y Abrir Caja" }
+      ]
+    },
+    {
+      "id": "01_13_login_pin_pantalla_bloqueo",
+      "file": "docs/manual/screenshots/01_onboarding_y_acceso/01_13_login_pin_pantalla_bloqueo.png",
+      "module": "Autenticación",
+      "step": "Paso 13: Bloqueo de Terminal",
+      "title": "Desbloqueo de Turno por PIN",
+      "description": "Pantalla de reposo para el día a día. Muestra el nombre 'Minimarket Doruck' y el teclado esperando que el cajero digite su PIN.",
+      "ui_callouts": [
+        { "label": "Cabecera", "target": "Nombre comercial Minimarket Doruck" },
+        { "label": "Avatar", "target": "Icono de cajero de turno" },
+        { "label": "Teclado", "target": "NumericPad táctil de alta velocidad" }
+      ]
+    },
+    {
+      "id": "01_14_login_pin_ingresando",
+      "file": "docs/manual/screenshots/01_onboarding_y_acceso/01_14_login_pin_ingresando.png",
+      "module": "Autenticación",
+      "step": "Paso 14: Marcado de PIN",
+      "title": "Digitación Segura de PIN",
+      "description": "Representación visual del ingreso de dígitos con feedback táctil y visual inmediato en las esferas de contraseña.",
+      "ui_callouts": [
+        { "label": "Progreso de PIN", "target": "3 dígitos ingresados de 4" },
+        { "label": "Borrar", "target": "Botón de retroceso para corregir" }
+      ]
+    },
+    {
+      "id": "01_15_caja_principal_llegada",
+      "file": "docs/manual/screenshots/01_onboarding_y_acceso/01_15_caja_principal_llegada.png",
+      "module": "Punto de Venta",
+      "step": "Paso 15: Entrada a Caja y Venta",
+      "title": "Módulo de Caja Listo para Operar",
+      "description": "Llegada al mostrador de ventas: cabecera con Minimarket Doruck y Cajero Eloy, catálogo en soles (S/), pestañas de categorías y carrito listo en S/ 0.00.",
+      "ui_callouts": [
+        { "label": "Barra Superior", "target": "Minimarket Doruck - Cajero: Eloy" },
+        { "label": "Buscador", "target": "Campo Buscar producto por nombre o código" },
+        { "label": "Categorías", "target": "Pestañas Todos, Abarrotes, Lácteos, Bebidas, etc." },
+        { "label": "Catálogo", "target": "Cuadrícula de productos con precios y stock" },
+        { "label": "Carrito", "target": "Botón flotante 0 productos - S/ 0.00" }
+      ]
+    }
+  ]
+}
+

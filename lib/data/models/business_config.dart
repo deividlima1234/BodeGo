@@ -17,10 +17,10 @@ class BusinessConfig {
   final bool showEddamCoreBranding;
 
   const BusinessConfig({
-    this.businessName = 'BODEGA MASCHERANO',
-    this.ruc = 'RUC: 10458921341',
-    this.address = 'Av. Principal 450 - Lima',
-    this.phone = 'Tel / Cel: 987 654 321',
+    this.businessName = '',
+    this.ruc = '',
+    this.address = '',
+    this.phone = '',
     this.logoType = 'preset',
     this.logoValue = 'storefront',
     this.ticketFooterMessage = '¡GRACIAS POR SU COMPRA!\nVUELVA PRONTO',
@@ -96,7 +96,7 @@ class BusinessConfig {
 
   factory BusinessConfig.fromJson(Map<String, dynamic> json) {
     return BusinessConfig(
-      businessName: json['businessName'] as String? ?? 'BODEGA MASCHERANO',
+      businessName: json['businessName'] as String? ?? '',
       ruc: json['ruc'] as String? ?? '',
       address: json['address'] as String? ?? '',
       phone: json['phone'] as String? ?? '',

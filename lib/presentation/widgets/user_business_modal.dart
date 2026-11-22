@@ -5,6 +5,8 @@ import 'package:bodego/data/repositories/user_repository.dart';
 import 'package:bodego/data/local/isar/collections/user.dart';
 import 'package:bodego/presentation/screens/auth/widgets/legal_terms_modal.dart';
 import 'package:bodego/core/services/app_version_service.dart';
+import 'package:bodego/presentation/screens/settings/widgets/change_cashier_pin_modal.dart';
+import 'package:bodego/presentation/screens/settings/widgets/change_admin_credentials_modal.dart';
 
 /// Modal Bottom Sheet elegante y moderno que despliega los datos del negocio,
 /// la información del Administrador/Encargado, el Cajero en turno y accesos rápidos.
@@ -514,6 +516,18 @@ class _UserBusinessModalState extends State<UserBusinessModal> {
               ],
             ),
           ),
+          IconButton(
+            icon: Icon(
+              Icons.edit_outlined,
+              size: 18,
+              color: colorScheme.onSurface.withOpacity(0.55),
+            ),
+            tooltip: 'Editar credenciales de Administrador',
+            onPressed: () {
+              Navigator.pop(context);
+              ChangeAdminCredentialsModal.show(context);
+            },
+          ),
         ],
       ),
     );
@@ -603,6 +617,18 @@ class _UserBusinessModalState extends State<UserBusinessModal> {
                 ),
               ],
             ),
+          ),
+          IconButton(
+            icon: Icon(
+              Icons.edit_outlined,
+              size: 18,
+              color: colorScheme.onSurface.withOpacity(0.55),
+            ),
+            tooltip: 'Editar PIN de Cajero',
+            onPressed: () {
+              Navigator.pop(context);
+              ChangeCashierPinModal.show(context);
+            },
           ),
         ],
       ),

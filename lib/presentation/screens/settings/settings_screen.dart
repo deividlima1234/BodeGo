@@ -24,6 +24,8 @@ import 'package:bodego/core/services/sync_queue_service.dart';
 import 'package:bodego/core/services/cloud_security_manager.dart';
 import 'package:bodego/data/models/google_sheets_config.dart';
 import 'package:bodego/presentation/widgets/ota_update_modal.dart';
+import 'package:bodego/presentation/screens/settings/widgets/change_cashier_pin_modal.dart';
+import 'package:bodego/presentation/screens/settings/widgets/change_admin_credentials_modal.dart';
 
 /// Pantalla completa de Configuración del Sistema BodeGo con categorías colapsables:
 /// - Perfil e Identidad del Negocio (Nombre, RUC, Dirección, Teléfono, Logo).
@@ -272,6 +274,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
 
     TicketPreviewModal.show(context, previewTicket, customConfig: draftConfig);
+  }
+
+  void _openChangeCashierPinModal() {
+    HapticFeedback.selectionClick();
+    ChangeCashierPinModal.show(
+      context,
+      onSaved: () async {
+        await _loadAllSettings();
+      },
+    );
+  }
+
+  void _openChangeAdminCredentialsModal() {
+    HapticFeedback.selectionClick();
+    ChangeAdminCredentialsModal.show(
+      context,
+      onSaved: () async {
+        await _loadAllSettings();
+      },
+    );
   }
 
   void _toggleExpandAll() {
@@ -1703,9 +1725,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                     title: const Text('Cajero de Turno'),
                     subtitle: Text(_cashierName),
-                    trailing: const Chip(
-                      label: Text('PIN 4 dígitos', style: TextStyle(fontSize: 11)),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Chip(
+                          label: Text('PIN 4 dígitos', style: TextStyle(fontSize: 11)),
+                        ),
+                        const SizedBox(width: 8),
+                        Icon(
+                          Icons.edit_outlined,
+                          size: 19,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                      ],
                     ),
+                    onTap: _openChangeCashierPinModal,
                   ),
                   const Divider(height: 1),
                   ListTile(
@@ -1715,9 +1749,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                     title: const Text('Administrador'),
                     subtitle: Text(_adminEmail),
-                    trailing: const Chip(
-                      label: Text('Acceso Total', style: TextStyle(fontSize: 11)),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Chip(
+                          label: Text('Acceso Total', style: TextStyle(fontSize: 11)),
+                        ),
+                        const SizedBox(width: 8),
+                        Icon(
+                          Icons.edit_outlined,
+                          size: 19,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                      ],
                     ),
+                    onTap: _openChangeAdminCredentialsModal,
                   ),
                 ],
               ),
