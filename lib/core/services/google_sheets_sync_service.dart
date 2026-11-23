@@ -11,6 +11,7 @@ import 'package:bodego/data/local/isar/collections/product.dart';
 import 'package:bodego/data/local/isar/collections/customer.dart';
 import 'package:bodego/data/local/isar/collections/user.dart';
 import 'package:bodego/data/models/google_sheets_config.dart';
+import 'package:bodego/data/models/sale_ticket.dart';
 import 'package:bodego/data/repositories/business_config_repository.dart';
 import 'package:bodego/data/repositories/ticket_repository.dart';
 import 'package:bodego/data/repositories/app_settings_repository.dart';
@@ -576,6 +577,22 @@ class GoogleSheetsSyncService {
       final appSettingsRepo = AppSettingsRepository();
       await appSettingsRepo.updateBusinessName(bName);
 
+      // 6. Restaurar tickets históricos desde la nube para asegurar correlativo correcto y reflejar ventas
+      final ticketsData = (catalog['tickets'] as List<dynamic>? ?? []);
+      final List<SaleTicket> restoredTickets = [];
+      for (final item in ticketsData) {
+        try {
+          restoredTickets.add(SaleTicket.fromJson(item as Map<String, dynamic>));
+        } catch (e) {
+          debugPrint('Error parseando ticket en loginBusiness: $e');
+        }
+      }
+      if (restoredTickets.isNotEmpty) {
+        await TicketRepository().mergeIncomingTickets(restoredTickets);
+      } else {
+        unawaited(restoreTicketsFromSheets());
+      }
+
       return (
         success: true,
         message: '¡Bienvenido de vuelta a $bName!\nSe restauraron $importedCount productos y clientes.',
@@ -911,6 +928,20 @@ class GoogleSheetsSyncService {
       final updatedConfig = config.copyWith(lastSyncAt: DateTime.now());
       await saveConfig(updatedConfig);
 
+      // Restaurar tickets históricos desde la nube
+      final ticketsData = (data['tickets'] as List<dynamic>? ?? []);
+      final List<SaleTicket> restoredTickets = [];
+      for (final item in ticketsData) {
+        try {
+          restoredTickets.add(SaleTicket.fromJson(item as Map<String, dynamic>));
+        } catch (_) {}
+      }
+      if (restoredTickets.isNotEmpty) {
+        await TicketRepository().mergeIncomingTickets(restoredTickets);
+      } else {
+        unawaited(restoreTicketsFromSheets());
+      }
+
       return (
         success: true,
         productsImported: importedCount,
@@ -920,6 +951,47 @@ class GoogleSheetsSyncService {
       return (success: false, productsImported: 0, message: 'Fallo al restaurar catálogo: $e');
     } finally {
       isSyncingNotifier.value = false;
+    }
+  }
+
+  /// Descarga el historial de tickets registrados en la nube hacia el almacenamiento local
+  Future<({bool success, int ticketsImported, String message})> restoreTicketsFromSheets() async {
+    var config = await getConfig();
+    if (!config.isConfigured || !config.isTenantAuthenticated) {
+      return (success: false, ticketsImported: 0, message: 'Nube no configurada o no autenticada');
+    }
+
+    try {
+      final queryParams = <String, String>{
+        'action': 'getTickets',
+        'businessId': config.businessId!,
+        'authToken': config.authToken!,
+      };
+
+      final resp = await _httpGet(config.effectiveScriptUrl, queryParams: queryParams);
+      if (resp != null && resp['success'] == true && resp['tickets'] != null) {
+        final list = resp['tickets'] as List<dynamic>;
+        final List<SaleTicket> tickets = [];
+        for (final item in list) {
+          try {
+            tickets.add(SaleTicket.fromJson(item as Map<String, dynamic>));
+          } catch (e) {
+            debugPrint('Error parseando ticket desde nube: $e');
+          }
+        }
+        if (tickets.isNotEmpty) {
+          final added = await TicketRepository().mergeIncomingTickets(tickets);
+          return (
+            success: true,
+            ticketsImported: added,
+            message: 'Se descargaron y fusionaron $added tickets de la nube',
+          );
+        }
+      }
+      return (success: true, ticketsImported: 0, message: 'No hay tickets pendientes en la nube');
+    } catch (e) {
+      debugPrint('Error en restoreTicketsFromSheets: $e');
+      return (success: false, ticketsImported: 0, message: 'Fallo al descargar tickets: $e');
     }
   }
 
@@ -937,7 +1009,15 @@ class GoogleSheetsSyncService {
     final license = await LicenseService().init();
     final myMachineId = license.machineId;
 
-    final sinceDate = config.lastSyncAt ?? DateTime.now().subtract(const Duration(days: 7));
+    final localTickets = await TicketRepository().getTickets();
+    DateTime sinceDate;
+    if (localTickets.isEmpty) {
+      // Si la terminal no tiene tickets locales aún, pedir de los últimos 90 días para hidratar
+      sinceDate = DateTime.now().subtract(const Duration(days: 90));
+    } else {
+      sinceDate = config.lastSyncAt ?? DateTime.now().subtract(const Duration(days: 7));
+    }
+
     final queryParams = <String, String>{
       'action': 'pullUpdates',
       'since': sinceDate.toIso8601String(),
@@ -948,16 +1028,37 @@ class GoogleSheetsSyncService {
     final resp = await _httpGet(config.effectiveScriptUrl, queryParams: queryParams);
 
     if (resp == null || resp['success'] != true) {
+      if (localTickets.isEmpty) {
+        await restoreTicketsFromSheets();
+      }
       return (success: false, deltasApplied: 0, message: 'No se pudieron descargar novedades');
+    }
+
+    // 1. Integrar tickets que vengan directamente en un array 'tickets'
+    final directTicketsList = (resp['tickets'] as List<dynamic>? ?? []);
+    if (directTicketsList.isNotEmpty) {
+      final List<SaleTicket> directTickets = [];
+      for (final itm in directTicketsList) {
+        try {
+          directTickets.add(SaleTicket.fromJson(itm as Map<String, dynamic>));
+        } catch (_) {}
+      }
+      if (directTickets.isNotEmpty) {
+        await TicketRepository().mergeIncomingTickets(directTickets);
+      }
     }
 
     final updates = (resp['updates'] as List<dynamic>? ?? []);
     if (updates.isEmpty) {
+      if (localTickets.isEmpty && directTicketsList.isEmpty) {
+        await restoreTicketsFromSheets();
+      }
       return (success: true, deltasApplied: 0, message: 'Sin movimientos nuevos por aplicar');
     }
 
     int applied = 0;
     final isar = DatabaseService.db;
+    final List<SaleTicket> incomingTickets = [];
 
     await isar.writeTxn(() async {
       for (final up in updates) {
@@ -969,6 +1070,14 @@ class GoogleSheetsSyncService {
 
         if (type == 'VENTA') {
           final ticket = data['ticket'] as Map<String, dynamic>?;
+          if (ticket != null) {
+            try {
+              incomingTickets.add(SaleTicket.fromJson(ticket));
+            } catch (e) {
+              debugPrint('Error parseando ticket en pullUpdates: $e');
+            }
+          }
+
           final items = (ticket?['items'] as List<dynamic>? ?? []);
           for (final itm in items) {
             final pName = _toStr(itm['name']);
@@ -1020,6 +1129,11 @@ class GoogleSheetsSyncService {
         }
       }
     });
+
+    if (incomingTickets.isNotEmpty) {
+      final addedCount = await TicketRepository().mergeIncomingTickets(incomingTickets);
+      debugPrint('pullUpdates: Se integraron $addedCount tickets foráneos en el historial local');
+    }
 
     final updatedConfig = config.copyWith(lastSyncAt: DateTime.now());
     await saveConfig(updatedConfig);

@@ -36,12 +36,12 @@ class SyncQueueService {
 
   void _startBackgroundSyncer() {
     _periodicTimer?.cancel();
-    // Reintentar periódicamente cada 45 segundos para sincronizar al volver el internet
-    _periodicTimer = Timer.periodic(const Duration(seconds: 45), (_) {
+    // Reintentar periódicamente cada 25 segundos para sincronizar ventas y tickets bidireccionalmente
+    _periodicTimer = Timer.periodic(const Duration(seconds: 25), (_) {
       triggerBackgroundSync();
     });
-    // Intento rápido a los 4 segundos tras iniciar la app
-    Future.delayed(const Duration(seconds: 4), () {
+    // Intento rápido a los 3 segundos tras iniciar la app
+    Future.delayed(const Duration(seconds: 3), () {
       triggerBackgroundSync();
     });
   }
@@ -198,11 +198,14 @@ class SyncQueueService {
         if (!registered) return;
       }
 
-      // 2. Si hay movimientos en cola, despacharlos
+      // 2. Si hay movimientos en cola, despacharlos (Push)
       final pending = await getPendingMovements();
       if (pending.isNotEmpty) {
         await syncService.processPendingQueue();
       }
+
+      // 3. Descargar automáticamente tickets y movimientos de otros dispositivos (Pull bidireccional)
+      await syncService.pullUpdates();
     } catch (e) {
       debugPrint('Sincronización periódica en segundo plano omitida: $e');
     } finally {

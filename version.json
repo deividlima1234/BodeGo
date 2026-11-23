@@ -1,14 +1,13 @@
 {
-  "latest_version": "2.0.1",
-  "build_number": 9,
-  "download_url": "https://github.com/deividlima1234/BodeGo/releases/download/v2.0.1/bodego-v2.0.1.apk",
+  "latest_version": "2.0.2",
+  "build_number": 10,
+  "download_url": "https://github.com/deividlima1234/BodeGo/releases/download/v2.0.2/bodego-v2.0.2.apk",
   "release_notes": [
-    "Gestión de Credenciales en Ajustes: Modales dedicados para cambiar contraseña/datos del Administrador y reasignar el PIN de 4 dígitos del Cajero con autorización segura.",
-    "Compatibilidad Android 14 (API 34): Actualización de targetSdkVersion a 34 y eliminación de advertencias de seguridad de Google Play Protect.",
-    "Instalación Limpia: Supresión de auto-registro y datos ficticios predeterminados en instalaciones nuevas.",
-    "Sincronización Cloud Robusta: Conversión tolerante de tipos numéricos (RUC, códigos de barra y teléfonos) desde Google Sheets para evitar fallos de parseo."
+    "Sincronización Bidireccional de Tickets: Descarga y reflejo automático de ventas en segundo plano entre múltiples terminales.",
+    "Correlativo Único Multidispositivo: Algoritmo de cálculo por valor máximo para evitar duplicidad de comprobantes (TKT-0001).",
+    "Historial Reactivo en Vivo: Actualización automática en pantalla al emitirse ventas en otros dispositivos."
   ],
   "is_mandatory": false,
   "min_supported_version": "1.0.0",
-  "published_at": "2026-11-21"
+  "published_at": "2026-11-22"
 }

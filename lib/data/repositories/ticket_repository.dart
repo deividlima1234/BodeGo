@@ -1,11 +1,16 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:bodego/data/models/sale_ticket.dart';
 
 /// Repositorio local para la persistencia y consulta del Historial de Tickets de Venta.
 class TicketRepository {
   static const String _fileName = 'sales_tickets.json';
+
+  /// Notificador reactivo que se incrementa cada vez que hay cambios en los tickets
+  /// (nuevas ventas, tickets descargados en segundo plano o sincronizados).
+  static final ValueNotifier<int> ticketsVersionNotifier = ValueNotifier<int>(0);
 
   Future<File> _getFile() async {
     final dir = await getApplicationDocumentsDirectory();
@@ -53,7 +58,22 @@ class TicketRepository {
     }
   }
 
-  /// Crea y persiste un nuevo ticket de venta con correlativo autoincremental.
+  /// Calcula el siguiente número correlativo inspeccionando el valor numérico máximo
+  /// entre todos los tickets locales y sincronizados, evitando colisiones.
+  int getNextTicketSequence(List<SaleTicket> tickets) {
+    int maxNumber = 0;
+    final regex = RegExp(r'(\d+)');
+    for (final t in tickets) {
+      final matches = regex.allMatches(t.ticketNumber);
+      if (matches.isNotEmpty) {
+        final val = int.tryParse(matches.last.group(0)!) ?? 0;
+        if (val > maxNumber) maxNumber = val;
+      }
+    }
+    return maxNumber + 1;
+  }
+
+  /// Crea y persiste un nuevo ticket de venta con correlativo autoincremental seguro.
   Future<SaleTicket> createTicket({
     required double total,
     double? subtotal,
@@ -70,8 +90,8 @@ class TicketRepository {
   }) async {
     final existingTickets = await getTickets();
 
-    // Generar correlativo incremental (ej. TKT-0001, TKT-0002)
-    final int nextNumber = existingTickets.length + 1;
+    // Generar correlativo incremental basado en el máximo existente
+    final int nextNumber = getNextTicketSequence(existingTickets);
     final String formattedNumber = 'TKT-${nextNumber.toString().padLeft(4, '0')}';
     final String id = 'TKT_${DateTime.now().millisecondsSinceEpoch}';
 
@@ -98,6 +118,7 @@ class TicketRepository {
     final file = await _getFile();
     final jsonString = jsonEncode(existingTickets.map((t) => t.toJson()).toList());
     await file.writeAsString(jsonString);
+    ticketsVersionNotifier.value++;
 
     return ticket;
   }
@@ -121,30 +142,43 @@ class TicketRepository {
     final file = await _getFile();
     final jsonString = jsonEncode(updated.map((t) => t.toJson()).toList());
     await file.writeAsString(jsonString);
+    ticketsVersionNotifier.value++;
   }
 
-  /// Fusiona tickets foráneos recibidos de una terminal secundaria evitando duplicados
+  /// Fusiona tickets foráneos recibidos de la nube o de una terminal evitando duplicados
+  /// y sincronizando renumeraciones o correcciones de correlativo desde la nube.
   Future<int> mergeIncomingTickets(List<SaleTicket> incoming) async {
     final currentTickets = await getTickets();
-    final currentIds = currentTickets.map((t) => t.id).toSet();
+    final Map<String, SaleTicket> ticketMap = {for (final t in currentTickets) t.id: t};
 
-    int addedCount = 0;
+    int changesCount = 0;
     for (final inc in incoming) {
-      if (!currentIds.contains(inc.id)) {
-        currentTickets.add(inc.copyWith(isSynced: true));
-        currentIds.add(inc.id);
-        addedCount++;
+      if (!ticketMap.containsKey(inc.id)) {
+        ticketMap[inc.id] = inc.copyWith(isSynced: true);
+        changesCount++;
+      } else {
+        final existing = ticketMap[inc.id]!;
+        // Si el número de ticket fue renumerado o corregido en la nube, actualizarlo localmente
+        if (existing.ticketNumber != inc.ticketNumber) {
+          ticketMap[inc.id] = existing.copyWith(
+            ticketNumber: inc.ticketNumber,
+            isSynced: true,
+          );
+          changesCount++;
+        }
       }
     }
 
-    if (addedCount > 0) {
-      currentTickets.sort((a, b) => b.date.compareTo(a.date));
+    if (changesCount > 0) {
+      final updatedList = ticketMap.values.toList();
+      updatedList.sort((a, b) => b.date.compareTo(a.date));
       final file = await _getFile();
-      final jsonString = jsonEncode(currentTickets.map((t) => t.toJson()).toList());
+      final jsonString = jsonEncode(updatedList.map((t) => t.toJson()).toList());
       await file.writeAsString(jsonString);
+      ticketsVersionNotifier.value++;
     }
 
-    return addedCount;
+    return changesCount;
   }
 
   /// Obtiene un ticket por su identificador.
@@ -193,6 +227,7 @@ class TicketRepository {
       if (await file.exists()) {
         await file.writeAsString('[]');
       }
+      ticketsVersionNotifier.value++;
     } catch (_) {}
   }
 }

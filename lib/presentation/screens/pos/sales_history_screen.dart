@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:bodego/data/models/sale_ticket.dart';
 import 'package:bodego/data/repositories/ticket_repository.dart';
+import 'package:bodego/core/services/google_sheets_sync_service.dart';
 import 'package:bodego/presentation/screens/pos/widgets/ticket_preview_modal.dart';
 
 /// Pantalla del Historial de Ventas y Comprobantes Emitidos (Tickets).
@@ -32,12 +34,35 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
   void initState() {
     super.initState();
     _loadTickets();
+    TicketRepository.ticketsVersionNotifier.addListener(_onTicketsChanged);
+    // Sincronización en segundo plano silenciosa al entrar
+    unawaited(GoogleSheetsSyncService().pullUpdates());
   }
 
   @override
   void dispose() {
+    TicketRepository.ticketsVersionNotifier.removeListener(_onTicketsChanged);
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _onTicketsChanged() {
+    if (mounted) {
+      _loadTicketsSilently();
+    }
+  }
+
+  Future<void> _loadTicketsSilently() async {
+    final tickets = await _ticketRepository.getTickets();
+    final summary = await _ticketRepository.getTodaySummary();
+
+    if (mounted) {
+      setState(() {
+        _allTickets = tickets;
+        _todaySummary = summary;
+        _applyFilters();
+      });
+    }
   }
 
   Future<void> _loadTickets() async {
@@ -53,6 +78,14 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
         _applyFilters();
       });
     }
+  }
+
+  Future<void> _handleManualRefresh() async {
+    setState(() => _isLoading = true);
+    try {
+      await GoogleSheetsSyncService().pullUpdates();
+    } catch (_) {}
+    await _loadTickets();
   }
 
   void _applyFilters() {
@@ -112,7 +145,7 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
             tooltip: 'Actualizar',
-            onPressed: _loadTickets,
+            onPressed: _handleManualRefresh,
           ),
         ],
       ),
