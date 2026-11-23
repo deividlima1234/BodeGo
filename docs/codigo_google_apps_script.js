@@ -72,9 +72,11 @@ function doGet(e) {
     if (action === 'pullUpdates') {
       const since = params.since ? new Date(params.since) : new Date(0);
       const updates = _getUpdatesSince(tenantSpreadsheet, since);
+      const tickets = _exportTicketsFromTenant(tenantSpreadsheet, 300);
       return _jsonResponse({
         success: true,
         updates: updates,
+        tickets: tickets,
         serverTime: new Date().toISOString()
       });
     }

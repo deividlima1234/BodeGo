@@ -36,6 +36,7 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
     _loadTickets();
     TicketRepository.ticketsVersionNotifier.addListener(_onTicketsChanged);
     // Sincronización en segundo plano silenciosa al entrar
+    unawaited(GoogleSheetsSyncService().restoreTicketsFromSheets());
     unawaited(GoogleSheetsSyncService().pullUpdates());
   }
 
@@ -83,6 +84,7 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
   Future<void> _handleManualRefresh() async {
     setState(() => _isLoading = true);
     try {
+      await GoogleSheetsSyncService().restoreTicketsFromSheets();
       await GoogleSheetsSyncService().pullUpdates();
     } catch (_) {}
     await _loadTickets();

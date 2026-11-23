@@ -205,6 +205,7 @@ class SyncQueueService {
       }
 
       // 3. Descargar automáticamente tickets y movimientos de otros dispositivos (Pull bidireccional)
+      await syncService.restoreTicketsFromSheets();
       await syncService.pullUpdates();
     } catch (e) {
       debugPrint('Sincronización periódica en segundo plano omitida: $e');

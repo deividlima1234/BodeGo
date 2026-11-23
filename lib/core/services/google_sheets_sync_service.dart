@@ -1028,9 +1028,7 @@ class GoogleSheetsSyncService {
     final resp = await _httpGet(config.effectiveScriptUrl, queryParams: queryParams);
 
     if (resp == null || resp['success'] != true) {
-      if (localTickets.isEmpty) {
-        await restoreTicketsFromSheets();
-      }
+      await restoreTicketsFromSheets();
       return (success: false, deltasApplied: 0, message: 'No se pudieron descargar novedades');
     }
 
@@ -1046,13 +1044,13 @@ class GoogleSheetsSyncService {
       if (directTickets.isNotEmpty) {
         await TicketRepository().mergeIncomingTickets(directTickets);
       }
+    } else {
+      // Si pullUpdates no incluyó 'tickets', consultar getTickets para sincronizar el historial
+      await restoreTicketsFromSheets();
     }
 
     final updates = (resp['updates'] as List<dynamic>? ?? []);
     if (updates.isEmpty) {
-      if (localTickets.isEmpty && directTicketsList.isEmpty) {
-        await restoreTicketsFromSheets();
-      }
       return (success: true, deltasApplied: 0, message: 'Sin movimientos nuevos por aplicar');
     }
 
